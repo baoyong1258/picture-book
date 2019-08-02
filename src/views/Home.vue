@@ -28,19 +28,10 @@
                         <audio
                             style="display: none"
                             controls 
-                            src="http://ip.h5.ra01.sycdn.kuwo.cn/7e4ef07fd9a7351026995d895c3f2330/5d42ce91/resource/n2/128/7/2/1228120100.mp3"
                             @loadedmetadata="loadedmetadata"
                             @timeupdate="timeupdate"
                         >
                         </audio>
-                        <!-- <audio
-                            style="display: none"
-                            controls 
-                            src="../assets/media/qingtian.mp3"
-                            @loadedmetadata="loadedmetadata"
-                            @timeupdate="timeupdate"
-                        >
-                        </audio> -->
                     </p>
                 </div>
                 <div class="audioEdit_right">
@@ -77,9 +68,23 @@
     </div>
 </template>
 <script lang="ts">
+import axios from 'axios';
 import { Component, Vue } from 'vue-property-decorator';
 import ImageBox from '@/components/ImageBox.vue';
 import PointBox from '@/components/PointBox.vue';
+
+const imageDataTemplate = { 
+    id: 0, 
+    src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', 
+    state: 0, 
+    start: 0, 
+    end: 0, 
+    width: '', 
+    height: '', 
+    playState: 0 
+};
+
+
 @Component({
     components: {
         ImageBox,
@@ -87,6 +92,7 @@ import PointBox from '@/components/PointBox.vue';
     }
 })
 export default class Home extends Vue {
+    private pictureBookId: '';
     private sliderValue: number = 0;
     private max = 0;
     private marks = {};
@@ -102,24 +108,6 @@ export default class Home extends Vue {
 
     private imageList = [
         { id: 0, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 1, src: 'https://creator.uuabc.com/courseware/assets/Bv6qVtuQf0MTt3m.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 2, src: 'https://creator.uuabc.com/courseware/assets/BVn9AG523rY5hFd.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/11stIRLYTJ3SveJ.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
-        { id: 3, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
     ]
 
     private pointList: any[] = []
@@ -226,10 +214,58 @@ export default class Home extends Vue {
         this.pointStart = 0;
         this.pointEnd = 0;
     }
-    
-    mounted() {
+
+    getResources() {
+        console.log('全局数据变量');
+        //@ts-ignore
+        console.log(pictureBookData);
+        //@ts-ignore
+        const { pictureBookId, images, audio } = pictureBookData;
+        this.pictureBookId = pictureBookId;
+        this.exchangeImages(images);
+        this.adjuctPointEditSize();
+        this.reloadAudio(audio);
+        // axios.get('./data.json')
+        // .then((response) => {
+        //     // handle success
+        //     console.log(response);
+        //     const data = response.data;
+        //     const { pictureBookId, images, audio } = data;
+        //     this.pictureBookId = pictureBookId;
+        //     this.exchangeImages(images);
+        //     this.adjuctPointEditSize();
+        //     this.reloadAudio(audio);
+        // })
+        // .catch(function (error) {
+        //     // handle error
+        //     console.log(error);
+        // })
+        // .finally(function () {
+        //     // always executed
+        // });
+    }
+
+    exchangeImages(images: string[] ) {
+        this.imageList = images.map((item, index) => Object.assign({}, imageDataTemplate, {
+            id: index,
+            src: item,
+        }));
+        console.log(this.imageList);
+    }
+
+    adjuctPointEditSize() {
         const pointEditContainer = document.querySelector('.pointEditContainer') as HTMLElement;
         pointEditContainer.style.width = this.imageList.length * 100 + 'px';
+    }
+
+    reloadAudio(src: string) {
+        const audio = document.querySelector('audio') as HTMLAudioElement;
+        audio.src = src;
+        audio.load();
+    }
+    
+    mounted() {
+        this.getResources();
     }
 }
 </script>
