@@ -1,0 +1,47 @@
+@mixin font-style($size, $color, $weight: normal, $lineHeight: normal) {
+    @if $weight == normal {
+        font-size: $size;
+        color: $color;
+    } @else {
+        font-size: $size;
+        color: $color;
+        font-weight: $weight;
+        line-height: $lineHeight;
+    }
+}
+
+@mixin position-absolute($top, $left) {
+    position: absolute;
+    top: $top;
+    left: $left;
+}
+
+@mixin box-size($width, $height) {
+    width: $width;
+    height: $height;
+}
+
+@mixin background-image($url, $size: contain) {
+    background-image: url($url);
+    background-repeat: no-repeat;
+    background-size: $size;
+}
+
+@mixin center-x {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+@mixin center-y {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+@mixin center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
