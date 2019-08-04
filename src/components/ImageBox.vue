@@ -3,7 +3,7 @@
         class="ImageBox"
         :data-src="src"
         @dragstart="dragstartByResource"
-        draggable="true"
+        :draggable="state !== 2"
     >
         <img :src="src" alt="">
         <div class="mask" v-if="state">

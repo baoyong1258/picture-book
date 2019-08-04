@@ -115,6 +115,7 @@
                         <!-- <el-button :disabled="!disabled" type="success" @click="endPoint">结束打点</el-button> -->
                         <!-- <el-button @click="resetPoint">重置</el-button> -->
                         <el-button @click="preview">预览</el-button>
+                        <el-button type="primary" @click="save">保存</el-button>
                     </div>
                 </div>
             </div>
@@ -123,6 +124,8 @@
 </template>
 <script lang="ts">
 import axios from 'axios';
+// @ts-ignore
+import Mousetrap from 'mousetrap';
 import { Component, Vue, Watch } from 'vue-property-decorator';
 import ImageBox from '@/components/ImageBox.vue';
 import PointBox from '@/components/PointBox.vue';
@@ -233,6 +236,7 @@ export default class Home extends Vue {
         if (!type) { return; } // 过滤可拖动元素拖动到非指定区域
         switch(type) {
             case 'image':
+                this.pause();
                 const src = evt.dataTransfer.getData('src');
                 const index = evt.dataTransfer.getData('index');
                 this.selecImage(Number(index));
@@ -241,11 +245,7 @@ export default class Home extends Vue {
                 point.positionX = this.getMaxPositionX();
    
                 // 计算width
-                console.log('point.positionX = ' + point.positionX);
-                console.log('this.pointStartLeft = ' + this.pointStartLeft);
-                console.log('Utils.getPointLeft(pointer) = ' + Utils.getPointLeft(this.pointer));
-                // todo: 需要进一步验证 实现原理
-                let width = Utils.getPointLeft(this.pointer) - 238 - point.positionX;
+                let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - point.positionX;
                 if(width > 0) {
                     point.width = width;
                 }
@@ -292,28 +292,28 @@ export default class Home extends Vue {
     }
 
     // 播放打点图片的包含的音频
-    playPoint(index: number) {
-        let point = this.imageList[index];
-        this.imageList.map(item => item.playState = 0);
-        point.playState = 1;
-        this.currentTime = point.start;
-        const endTime = point.end;
-        this.isPlay = false;
-        const audio = this.audio;
-        audio.currentTime = this.currentTime;
-        let fn: any;
-        audio.addEventListener('timeupdate', fn = () => {
-            if(audio.currentTime > endTime) {
-                this.pausePoint(index);
-                this.currentTime = endTime;
-                this.sliderValue = endTime;
-                audio.removeEventListener('timeupdate', fn);
-            }
-        }, false);
-        setTimeout(() => {
-            audio.play();
-        }, 0);
-    }
+    // playPoint(index: number) {
+    //     let point = this.imageList[index];
+    //     this.imageList.map(item => item.playState = 0);
+    //     point.playState = 1;
+    //     this.currentTime = point.start;
+    //     const endTime = point.end;
+    //     this.isPlay = false;
+    //     const audio = this.audio;
+    //     audio.currentTime = this.currentTime;
+    //     let fn: any;
+    //     audio.addEventListener('timeupdate', fn = () => {
+    //         if(audio.currentTime > endTime) {
+    //             this.pausePoint(index);
+    //             this.currentTime = endTime;
+    //             this.sliderValue = endTime;
+    //             audio.removeEventListener('timeupdate', fn);
+    //         }
+    //     }, false);
+    //     setTimeout(() => {
+    //         audio.play();
+    //     }, 0);
+    // }
     
     // 暂停打点图片音频
     pausePoint(index: number) {
@@ -368,6 +368,7 @@ export default class Home extends Vue {
         this.currentTime = this.sliderValue;
         let deleteEndTime = this.getDeletePointEndTime(this.currentTime);
         if(deleteEndTime !== -1) {
+            this.sliderValue = deleteEndTime;
             evt.currentTarget.currentTime = deleteEndTime;
         }
     }
@@ -476,6 +477,13 @@ export default class Home extends Vue {
         this.play();
     }
 
+    // 保存
+    save() {
+        console.log('--> 保存 save');
+        console.log('pictureBookId = ' + this.pictureBookId);
+        console.log(this.pointList);
+    }
+
     // 获取图片、音频资源
     getResources() {
         console.log('全局数据变量');
@@ -542,8 +550,9 @@ export default class Home extends Vue {
         // document 监听 mouseup
         const upEvent = () => {
             isUp = true;
+            this.pause();
             this.reArrangeDeletePoint();
-            let width = Utils.getPointLeft(this.pointer) - 238 - templateData.positionX;
+            let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - templateData.positionX;
             templateData.width = width;
             this.pointList.push(templateData);
             endMatrix.copyFrom(initStartMatrix);
@@ -586,8 +595,17 @@ export default class Home extends Vue {
         const elSliderButtonWrapper = document.querySelector('.el-slider__button-wrapper') as HTMLElement;
         const pointer = document.querySelector('.pointer') as HTMLElement;
         this.pointer = pointer;
-        this.pointStartLeft = Utils.getPointLeft(pointer);
         elSliderButtonWrapper.appendChild(pointer);
+        this.pointStartLeft = Utils.getPointLeft(pointer);
+
+        Mousetrap.bind('space', () => {
+            console.log('空格键事件触发');
+            if(this.isPlay) {
+                this.play();
+            } else {
+                this.pause();
+            }
+        });
 
         this.listenAudioEditContainer();
         axios.get('https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=123')
