@@ -1,17 +1,34 @@
 <template>
     <div class="Home">
-        <div class="aside"></div>
         <div class="right-container">
+            <!-- 图片列表 -->
             <div class="imageContainer">
                 <ImageBox
                     v-for="(item, index) in imageList"
                     :key="index"
+                    :index="index"
                     :src="item.src"
                     :state="item.state"
+                    :playState="item.playState"
                     @click.native="selecImage(index)"
+                    @play="playPoint(index)"
+                    @pause="pausePoint(index)"
+                    @biggerImage="biggerImage(index)"
+                    @removeImage="removeImage(index)"
                 ></ImageBox>
+                <div class="biggerImageBox" v-if="biggerImageBoxShow">
+                    <span class="close el-icon-circle-close" @click="biggerImageBoxShow = false"></span>
+                    <img 
+                        :src="biggerImageSrc"
+                        :data-src="biggerImageSrc"
+                        @dragstart="dragstartByResource"
+                        draggable="true"
+                    >
+                </div>
             </div>
+            <!-- 音频编辑区域 -->
             <div class="audioEdit">
+                <!-- 左侧标题 -->
                 <div class="audioEdit_left">
                     <p class="img">
                         <span>图片</span>
@@ -24,7 +41,7 @@
                                 <span class="el-icon-video-pause" v-else @click="pause"></span>
                             </span>
                         </span>
-                        <span>{{ currentTime }}</span>
+                        <span>{{ currentTimeFilter }}</span>
                         <audio
                             style="display: none"
                             controls 
@@ -34,33 +51,70 @@
                         </audio>
                     </p>
                 </div>
+                <!-- 右侧操作区域 -->
                 <div class="audioEdit_right">
                     <div class="pointEditBox">
                         <div class="pointEditContainer">
+                            <!-- 时间进度条 -->
                             <el-slider 
                                 v-model="sliderValue"
+                                :step="0.01"
                                 :min="0"
                                 :max="max"
                                 :marks="marks"
                                 :format-tooltip="formatTooltip"
                                 @change="change"
                             ></el-slider>
-                            <div class="pointContainer">
+                            <!-- 图片匹配音频区域 -->
+                            <div 
+                                class="pointContainer"
+                                @dragover.prevent 
+                                @drop='dropModuleOnEgret'
+                            >
                                 <PointBox
                                     v-for="(item, index) in pointList"
                                     :key="index"
+                                    :type="item.type"
+                                    :index="index"
+                                    :isActive="index === pointBoxActiveIndex"
                                     :src="item.src"
                                     :start="item.start"
                                     :end="item.end"
                                     :width="item.width"
+                                    :positionX="item.positionX"
+                                    @click.native="clcikPointBox(index)"
+                                    @move="pointBoxMove"
                                 ></PointBox>
+                                <!-- translate工具组件 -->
+                                <TranslateTool
+                                    v-if="translateToolShow"
+                                    :index="pointBoxActiveIndex"
+                                    :width="pointBoxActiveItem.width"
+                                    :height="pointBoxActiveItem.height"
+                                    :positionX="pointBoxActiveItem.positionX"
+                                    @move="pointBoxMove"
+                                ></TranslateTool>
                             </div>
+                            <!-- 音频截取操作区域 -->
+                            <div class="audioEditContainer" ref="audioEditContainer">
+                                <DeletePointBox
+                                    v-for="(item, index) in deletePointList"
+                                    :key="item.id"
+                                    :width="item.width"
+                                    :index="index"
+                                    :positionX="item.positionX"
+                                    @remove="removeDeletePointBox(index)"
+                                ></DeletePointBox>
+                            </div>
+                            <!-- 进度滑块 -->
+                            <div class="pointer"></div>
                         </div>
                     </div>
                     <div class="btn_container">
-                        <el-button :disabled="disabled" type="primary" @click="startPoint">开始打点</el-button>
-                        <el-button :disabled="!disabled" type="success" @click="endPoint">结束打点</el-button>
-                        <el-button @click="resetPoint">重置</el-button>
+                        <!-- <el-button :disabled="disabled" type="primary" @click="startPoint">开始打点</el-button> -->
+                        <!-- <el-button :disabled="!disabled" type="success" @click="endPoint">结束打点</el-button> -->
+                        <!-- <el-button @click="resetPoint">重置</el-button> -->
+                        <el-button @click="preview">预览</el-button>
                     </div>
                 </div>
             </div>
@@ -69,19 +123,25 @@
 </template>
 <script lang="ts">
 import axios from 'axios';
-import { Component, Vue } from 'vue-property-decorator';
+import { Component, Vue, Watch } from 'vue-property-decorator';
 import ImageBox from '@/components/ImageBox.vue';
 import PointBox from '@/components/PointBox.vue';
+import DeletePointBox from '@/components/DeletePointBox.vue';
+import TranslateTool from '@/components/TranslateTool.vue';
+import Utils from '@/utils/index.ts';
+import Matrix from '@/utils/Matrix.ts';
 
 const imageDataTemplate = { 
     id: 0, 
-    src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', 
-    state: 0, 
-    start: 0, 
-    end: 0, 
-    width: '', 
-    height: '', 
-    playState: 0 
+    type: 1, // 图片断点类型，1: 图片，0: 删除区域
+    src: '', // 图片路径
+    state: 0, // 0: 默认，1: 已选中，2：已使用
+    start: 0, // 起始时间
+    end: 0, // 结束时间
+    width: 100, // 图片宽度
+    height: 'auto', // 图片高度
+    playState: 0, // 播放状态 0: 暂停 1：播放
+    positionX: 0, // x轴坐标
 };
 
 
@@ -89,29 +149,56 @@ const imageDataTemplate = {
     components: {
         ImageBox,
         PointBox,
+        DeletePointBox,
+        TranslateTool
     }
 })
 export default class Home extends Vue {
-    private pictureBookId: '';
-    private sliderValue: number = 0;
-    private max = 0;
-    private marks = {};
-    private isPlay = true;
-    private duration: number = 0;
-    private currentTime = 0;
-    private disabled = false;
-    private selectedIndex: number = 0;
-    private pointStart: number = 0;
-    private pointEnd: number = 0;
-
+    private pictureBookId: ''; // 绘本Id
+    private sliderValue: number = 0; // 进度条的值
+    private max = 0; // 进度条最大值
+    private marks = {}; // 进度条下标时间点
+    private isPlay = true; // 播放状态 用于控制播放icon的切换
+    private duration: number = 0; // 音频完整时间
+    private currentTime = 0; // 音频播放的当前时间
+    private currentTimeFilter = ''; // 音频播放的当前时间 - 展示时间
+    private disabled = false; // 打点按钮是否可点击
+    private selectedIndex: number = 0; // 选中图片的索引
+    private pointStart: number = 0; // 打点 - 起始点时间
+    private pointEnd: number = 0; // 打点 - 结束点时间
+    private pointStartLeft: number = 0; // 进度指针的位置
     private divNum: number = 30; // 展示的进度数值的段数
 
-    private imageList = [
-        { id: 0, src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg', state: 0, start: 0, end: 0, width: '', height: '', playState: 0 },
+    private pointBoxActiveIndex = 0; // 被选中的打点图片索引
+    private pointBoxActiveItem = {}; // 被选中的打点图片item
+
+    private imageList = [ // 图片列表
+        { 
+            id: 0, 
+            src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg',
+            state: 0, 
+            start: 0, 
+            end: 0, 
+            width: 200, 
+            height: '', 
+            playState: 0, 
+            positionX: 0 
+        },
     ]
+ 
+    private pointList: any[] = []; // 打点图片列表
+    private deletePointList: any[] =[]; // 删除音频列表
 
-    private pointList: any[] = []
+    private biggerImageBoxShow: boolean = false; // 是否展示大图
+    private biggerImageSrc: string = ''; // 大图src
+    private biggerImageIndex: number = 0; // 大图索引
 
+    private translateToolShow: boolean = false; // 是否展示translateTool工具组件
+
+    private pointer: HTMLElement; // 指针dom
+    private audio: HTMLAudioElement// 音频dom
+
+    // 选择图片列表
     selecImage(index: number) {
         if (this.imageList[index].state) {
             return;
@@ -125,37 +212,167 @@ export default class Home extends Vue {
         this.selectedIndex = index;
     }
 
+    // 拖拽大图
+    public dragstartByResource(evt: any) {
+        let src = evt.target.dataset.src;
+        evt.dataTransfer.setData('src', src);
+        evt.dataTransfer.setData('index', this.biggerImageIndex);
+        evt.dataTransfer.setData('type', 'image');
+    }
+
+    // 点击打点图片列表
+    public clcikPointBox(index:number) {
+        this.translateToolShow = true;
+        this.pointBoxActiveIndex = index;
+        this.pointBoxActiveItem = this.pointList[index];
+    }
+
+    // 将图片拖拽到打点区域触发
+    public dropModuleOnEgret(evt: any) {
+        const type = evt.dataTransfer.getData('type');
+        if (!type) { return; } // 过滤可拖动元素拖动到非指定区域
+        switch(type) {
+            case 'image':
+                const src = evt.dataTransfer.getData('src');
+                const index = evt.dataTransfer.getData('index');
+                this.selecImage(Number(index));
+                let point = this.imageList[index];
+                point.state = 2;
+                point.positionX = this.getMaxPositionX();
+   
+                // 计算width
+                console.log('point.positionX = ' + point.positionX);
+                console.log('this.pointStartLeft = ' + this.pointStartLeft);
+                console.log('Utils.getPointLeft(pointer) = ' + Utils.getPointLeft(this.pointer));
+                // todo: 需要进一步验证 实现原理
+                let width = Utils.getPointLeft(this.pointer) - 238 - point.positionX;
+                if(width > 0) {
+                    point.width = width;
+                }
+
+                this.pointList.push(point);
+                this.reArrange();
+        }
+    }
+
+    // 平移translateTool工具后的回调
+    public pointBoxMove(index: number, width: number, direction: 'left' | 'right') {
+        if(direction === 'left') {
+            let point = this.pointList[index];
+            let prePoint = this.pointList[index - 1];
+            const addWidth = width - point.width;
+            point.positionX -= addWidth;
+            point.width += addWidth;
+            if(prePoint) {
+               prePoint.width -= addWidth;
+            }
+        } else if(direction === 'right') {
+            let point = this.pointList[index];
+            let nextPoint = this.pointList[index + 1];
+            const addWidth = width - point.width;
+            point.width += addWidth;
+            if(nextPoint) {
+                nextPoint.positionX += addWidth;
+                nextPoint.width -= addWidth;
+            }
+        }
+        this.reArrange();
+    }
+
+    // 暂停音频
     pause() {
         this.isPlay = true;
-        const audio = document.querySelector('audio') as any;
-        audio.pause();
+        this.audio.pause();
     }
 
+    // 播放音频
     play() {
         this.isPlay = false;
-        const audio = document.querySelector('audio') as any;
-        audio.play();
+        this.audio.play();
     }
 
+    // 播放打点图片的包含的音频
+    playPoint(index: number) {
+        let point = this.imageList[index];
+        this.imageList.map(item => item.playState = 0);
+        point.playState = 1;
+        this.currentTime = point.start;
+        const endTime = point.end;
+        this.isPlay = false;
+        const audio = this.audio;
+        audio.currentTime = this.currentTime;
+        let fn: any;
+        audio.addEventListener('timeupdate', fn = () => {
+            if(audio.currentTime > endTime) {
+                this.pausePoint(index);
+                this.currentTime = endTime;
+                this.sliderValue = endTime;
+                audio.removeEventListener('timeupdate', fn);
+            }
+        }, false);
+        setTimeout(() => {
+            audio.play();
+        }, 0);
+    }
+    
+    // 暂停打点图片音频
+    pausePoint(index: number) {
+        this.imageList[index].playState = 0;
+        this.pause();
+    }
+
+    // 放大图片
+    biggerImage(index: number) {
+        this.biggerImageBoxShow = true;
+        this.biggerImageSrc = this.imageList[index].src;
+        this.biggerImageIndex = index;
+    }
+
+    // 将打点图片从打点区域删除
+    removeImage(index: number) {
+        const item = this.imageList[index];
+        const { id } = item;
+        item.state = 0;
+        const pointIndex = this.pointList.findIndex(point => point.id === id);
+        if(pointIndex !== -1) {
+            this.pointList.splice(pointIndex, 1);
+        }
+    }
+
+    // 删除截取音频区域
+    removeDeletePointBox(index: number) {
+        const pointId = this.deletePointList[index].id;
+        this.deletePointList.splice(index, 1);
+        const ponitIndex = this.pointList.findIndex(item => item.id === pointId);
+        if(ponitIndex !== -1) {
+            this.pointList.splice(ponitIndex, 1);
+        }
+    }
+
+    // 拖拽音频进度条触发
     change(value: number) {
-        console.log('change value = ' + value);
-        const audio = document.querySelector('audio') as any;
-        audio.currentTime = value;
+        this.audio.currentTime = value;
     }
 
+    // 监听音频原数据加载完成
     loadedmetadata(evt: any) {
         const duration = evt.currentTarget.duration;
         this.duration = duration;
-        console.log('duration = ' + duration);
         this.max = Math.floor(duration);
         this.marks = this.createMarks(this.max)
     }
 
+    // 监听音频播放事件的改变
     timeupdate(evt: any) {
         this.sliderValue = evt.currentTarget.currentTime;
         this.currentTime = this.sliderValue;
+        let deleteEndTime = this.getDeletePointEndTime(this.currentTime);
+        if(deleteEndTime !== -1) {
+            evt.currentTarget.currentTime = deleteEndTime;
+        }
     }
 
+    // 创建音频进度条下标时间区域
     createMarks(max: number) {
         let marks: any = {};
         for(let i = 0, len = this.divNum; i <= len; i++) {
@@ -165,56 +382,101 @@ export default class Home extends Vue {
         return marks;
     }
 
+    // 转换进度条上方tip时间
     formatTooltip(value: number) {
-        value = Math.floor(value);
-        let minute: any = Math.floor(value / 60);
-        let second: any = value - 60 * minute;
-        minute = minute > 9 ? minute : `0${minute}`;
-        second = second > 9 ? second : `0${second}`;
-        return `${minute}:${second}`;
+        return Utils.exchangeTime(value);
     }
 
-    startPoint() {
-        this.play();
-        this.disabled = true;
-        this.pointStart = this.currentTime;
+    // startPoint() {
+    //     this.play();
+    //     this.disabled = true;
+    //     this.pointStart = this.currentTime;
+    //     const pointer = document.querySelector('.pointer') as HTMLElement;
+    //     this.pointStartLeft = Utils.getPointLeft(pointer);
+    // }
+
+    // endPoint() {
+    //     this.pause();
+    //     this.disabled = false;
+    //     setTimeout(() => {
+    //         const pointer = document.querySelector('.pointer') as HTMLElement;
+    //         // start、end
+    //         this.pointEnd = this.currentTime;
+    //         let point = this.imageList[this.selectedIndex];
+    //         point.start = this.pointStart;
+    //         point.end = this.pointEnd;
+    //         // width、height
+    //         let width = Utils.getPointLeft(pointer) - this.pointStartLeft;
+    //         point.width = width;
+
+    //         // this.pointList.push(point);
+    //         // 改变状态
+    //         this.imageList[this.selectedIndex].state = 2;
+    //         // this.selecImage(this.selectedIndex + 1);
+    //     }, 200);
+    // }
+
+    // resetPoint() {
+    //     this.disabled = false;
+    //     this.pointStart = 0;
+    //     this.pointEnd = 0;
+    // }
+
+    // 获取打点图片右侧x坐标最大值
+    getMaxPositionX() {
+        if(!this.pointList.length) { return 0 };
+        const pointList = this.pointList.map(point => point.positionX + point.width);
+        return Math.max(...pointList);
     }
 
-    endPoint() {
-        console.log(this.selectedIndex);
-        this.pause();
-        this.disabled = false;
-        // start、end
-        this.pointEnd = this.currentTime;
-        let point = this.imageList[this.selectedIndex];
-        point.start = this.pointStart;
-        point.end = this.pointEnd;
-        let durationTime = point.end - point.start;
-        // width、height
-        let width;
-        let height;
-        let rate = durationTime / this.duration;
-        if(rate > 1 / this.imageList.length) {
-            height = '100px';
-        } else {
-            height = 'auto';
+    // 根据时间获取对应的打点位置
+    getTimeByPosition(x: number) {
+        let rate = x / (this.imageList.length * 100);
+        return this.duration * rate;
+    }
+
+    // 判断某个时间点是否在截取音频列表的某个范围内 并返回endTime 用于跳跃截取音频的段
+    getDeletePointEndTime(updateTime: number) {
+        const point = this.deletePointList.find(point => updateTime > point.start && updateTime < point.end);
+        if(point) {
+            return point.end;
         }
-        width = rate * this.imageList.length * 100 + 'px';
-        point.width = width;
-        point.height = height;
-
-        this.pointList.push(point);
-        // 改变状态
-        this.imageList[this.selectedIndex].state = 2;
-        this.selecImage(this.selectedIndex + 1);
+        return -1;
     }
 
-    resetPoint() {
-        this.disabled = false;
-        this.pointStart = 0;
-        this.pointEnd = 0;
+    // 根据positionX和width计算图片列表的start、end
+    reArrange() {
+        for(let i = 0, len = this.pointList.length; i < len; i++) {
+            let point = this.pointList[i];
+            let { positionX, width } = point;
+            let startTime = this.getTimeByPosition(positionX);
+            let endTime = this.getTimeByPosition(positionX + width);
+            point.start = startTime;
+            point.end = endTime;
+        }
     }
 
+    // 根据positionX和width截取音频列表的start、end
+    reArrangeDeletePoint() {
+        for(let i = 0, len = this.deletePointList.length; i < len; i++) {
+            let point = this.deletePointList[i];
+            let { positionX, width } = point;
+            let startTime = this.getTimeByPosition(positionX);
+            let endTime = this.getTimeByPosition(positionX + width);
+            point.start = startTime;
+            point.end = endTime;
+        }
+    }
+
+    // 预览 - 从头播放一次
+    preview() {
+        this.currentTime = 0;
+        this.sliderValue = 0;
+        this.audio.currentTime = 0;
+        this.play();
+    }
+
+    // 获取图片、音频资源
     getResources() {
         console.log('全局数据变量');
         //@ts-ignore
@@ -225,47 +487,122 @@ export default class Home extends Vue {
         this.exchangeImages(images);
         this.adjuctPointEditSize();
         this.reloadAudio(audio);
-        // axios.get('./data.json')
-        // .then((response) => {
-        //     // handle success
-        //     console.log(response);
-        //     const data = response.data;
-        //     const { pictureBookId, images, audio } = data;
-        //     this.pictureBookId = pictureBookId;
-        //     this.exchangeImages(images);
-        //     this.adjuctPointEditSize();
-        //     this.reloadAudio(audio);
-        // })
-        // .catch(function (error) {
-        //     // handle error
-        //     console.log(error);
-        // })
-        // .finally(function () {
-        //     // always executed
-        // });
     }
 
+    // 根据图片资源列表和模版数据生成需要的图片数据列表
     exchangeImages(images: string[] ) {
         this.imageList = images.map((item, index) => Object.assign({}, imageDataTemplate, {
             id: index,
             src: item,
         }));
-        console.log(this.imageList);
     }
 
+    // 根据图片资源的数量动态调整打点区域的宽度
     adjuctPointEditSize() {
+        const pointEditBox = document.querySelector('.pointEditBox') as HTMLElement;
+        pointEditBox.style.width = (document.body.clientWidth - 200) + 'px';
         const pointEditContainer = document.querySelector('.pointEditContainer') as HTMLElement;
         pointEditContainer.style.width = this.imageList.length * 100 + 'px';
     }
 
+    // 加载音频
     reloadAudio(src: string) {
-        const audio = document.querySelector('audio') as HTMLAudioElement;
-        audio.src = src;
-        audio.load();
+        this.audio.src = src;
+        this.audio.load();
+    }
+
+    // 监听音频裁剪区域的拖拽
+    listenAudioEditContainer() {
+        let el = this.$refs.audioEditContainer as HTMLElement;
+        let startX = 0;
+        let startY = 0;
+        let startMatrix: Matrix = new Matrix();
+        const endMatrix: Matrix = new Matrix();
+        const initStartMatrix: Matrix = new Matrix();
+
+        let templateData = Object.assign({}, imageDataTemplate);
+        let isUp = true;
+
+        const updateDom = (matrix: Matrix) => {
+            const { x, y } = matrix;
+            templateData.width = x;
+        };
+
+        // document 监听 mousemove
+        const moveEvent = (evt: MouseEvent) => {
+            initStartMatrix.copyFrom(startMatrix);
+            const endX = evt.x;
+            const endY = evt.y;
+            const addX = endX - startX;
+            const addY = endY - startY;
+            initStartMatrix.translate(addX, addY);
+            updateDom(initStartMatrix);
+        };
+
+        // document 监听 mouseup
+        const upEvent = () => {
+            isUp = true;
+            this.reArrangeDeletePoint();
+            let width = Utils.getPointLeft(this.pointer) - 238 - templateData.positionX;
+            templateData.width = width;
+            this.pointList.push(templateData);
+            endMatrix.copyFrom(initStartMatrix);
+            document.body.removeEventListener('mousemove', moveEvent, false);
+            document.body.removeEventListener('mouseup', upEvent, false);
+        };
+
+        // el 监听 mousedown
+        el.addEventListener('mousedown', (evt) => {
+            isUp = false;
+            templateData = Object.assign({}, imageDataTemplate);
+            // @ts-ignore
+            templateData.id = new Date().toLocaleString();
+            templateData.type = 0;
+            // templateData.positionX = evt.offsetX;
+            templateData.positionX = this.getMaxPositionX();
+            templateData.width = 0;
+            setTimeout(() => {
+                if(!isUp) {
+                    this.deletePointList.push(templateData);
+                }
+            }, 30);
+            startX = evt.x;
+            startY = evt.y;
+            if (!el.style.transform) {
+                startMatrix = new Matrix(1, 0, 0, 1, 0, 0);
+            } else {
+                startMatrix.copyFrom(endMatrix);
+            }
+            document.body.addEventListener('mousemove', moveEvent, false);
+            document.body.addEventListener('mouseup', upEvent, false);
+        }, false);
     }
     
     mounted() {
+        this.audio = document.querySelector('audio') as any;
+
         this.getResources();
+        // 将指针dom放入element滑块组件中
+        const elSliderButtonWrapper = document.querySelector('.el-slider__button-wrapper') as HTMLElement;
+        const pointer = document.querySelector('.pointer') as HTMLElement;
+        this.pointer = pointer;
+        this.pointStartLeft = Utils.getPointLeft(pointer);
+        elSliderButtonWrapper.appendChild(pointer);
+
+        this.listenAudioEditContainer();
+        axios.get('https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=123')
+            .then(res => {
+                console.log(res);
+            })
+        axios.post('https://sit-studytool.uuabc.com/api/picture-book/user-mapping', {
+            "id": "123",
+            "mappings": { "format": "any JSON data" }
+        })
+    }
+
+    @Watch('currentTime')
+    onChildChanged(val: number) {
+        this.currentTimeFilter = Utils.exchangeTime(val);
     }
 }
 </script>
@@ -275,14 +612,6 @@ export default class Home extends Vue {
   height: 100%;
   display: flex;
 }
-.aside {
-  height: 100%;
-  width: 200px;
-  background-color: #D3DCE6;
-  color: #333;
-  text-align: center;
-}
-  
 .right-container {
     flex: 1;
     background-color: #E9EEF3;
@@ -297,12 +626,25 @@ export default class Home extends Vue {
     left: 0;
     width: 100%;
     height: 300px;
-    // background-color: orange;
+    padding: 0 20px;
     overflow-y: auto;
     display: flex;
     flex-wrap: wrap;
     .ImageBox {
         margin-left: 20px;
+    }
+    .biggerImageBox {
+        @include center();
+        border: 1px solid #000;
+        .close {
+            position: absolute;
+            right: 0;
+            top: 0;
+            font-size: 24px;
+        }
+        img {
+            height: 280px;
+        }
     }
 }
 .audioEdit {
@@ -335,10 +677,11 @@ export default class Home extends Vue {
     }
     .audioEdit_right {
         flex: 1;
-        padding: 0 20px;
         .pointEditBox {
+            padding: 0 20px;
             width: 1000px;
             overflow-x: auto;
+            position: relative;
         }
         .pointContainer {
             margin-top: 4px;
@@ -346,7 +689,28 @@ export default class Home extends Vue {
             height: 100px;
             background-color: #dddddd;
             overflow: hidden;
-            display: flex;
+            position: relative;
+            .TranslateTool {
+
+            }
+        }
+        .audioEditContainer {
+            width: 100%;
+            height: 100px;
+            background-color: skyBlue;
+            overflow: hidden;
+            position: relative;
+        }
+        .pointer {
+            position: absolute;
+            top: 18px;
+            left: 18px;
+
+            height: 220px;
+            width: 1px;
+            padding: 0 2px;
+            border-left: 1px solid blue;
+            cursor: pointer;
         }
         .btn_container {
             margin-top: 60px;
