@@ -15,13 +15,16 @@
                     @removeImage="removeImage(index)"
                 ></ImageBox>
                 <div class="biggerImageBox" v-if="biggerImageBoxShow">
-                    <span class="close el-icon-circle-close" @click="biggerImageBoxShow = false"></span>
                     <img 
                         :src="biggerImageSrc"
                         :data-src="biggerImageSrc"
                         @dragstart="dragstartByResource"
-                        draggable="true"
+                        :draggable="imageList[biggerImageIndex].state !== 2"
                     >
+                    <div class="mask" v-if="imageList[biggerImageIndex].state === 2">
+                        <p>已使用</p>
+                    </div>
+                    <span class="close el-icon-circle-close" @click="biggerImageBoxShow = false"></span>
                 </div>
             </div>
             <!-- 音频编辑区域 -->
@@ -651,7 +654,43 @@ export default class Home extends Vue {
             document.body.addEventListener('mouseup', upEvent, false);
         }, false);
     }
-    
+
+    // 监听快捷键
+    listenKeyBoard() {
+        // 空格键控制音频播放/暂停
+        Mousetrap.bind('space', () => {
+            console.log('空格键事件触发');
+            if(this.isPlay) {
+                this.play();
+            } else {
+                this.pause();
+            }
+        }); 
+        // 左右键切换大图展示
+        Mousetrap.bind('right', () => {
+            console.log('右键事件触发');
+            if(!this.biggerImageBoxShow) {
+                return;
+            }
+            if(this.biggerImageIndex >= this.imageList.length - 1) {
+                return;
+            }
+            this.biggerImageIndex ++;
+            this.biggerImageSrc = this.imageList[this.biggerImageIndex].src;
+        }); 
+        Mousetrap.bind('left', () => {
+            console.log('左键事件触发');
+            if(!this.biggerImageBoxShow) {
+                return;
+            }
+            if(this.biggerImageIndex <= 0) {
+                return;
+            }
+            this.biggerImageIndex --
+            this.biggerImageSrc = this.imageList[this.biggerImageIndex].src;
+        }); 
+    }   
+
     // 获取打点信息
     getPointListData() {
         axios.get(`https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=${this.pictureBookId}`)
@@ -685,14 +724,8 @@ export default class Home extends Vue {
         elSliderButtonWrapper.appendChild(pointer);
         this.pointStartLeft = Utils.getPointLeft(pointer);
 
-        Mousetrap.bind('space', () => {
-            console.log('空格键事件触发');
-            if(this.isPlay) {
-                this.play();
-            } else {
-                this.pause();
-            }
-        }); 
+        // 
+        this.listenKeyBoard();
 
         this.listenAudioEditContainer();
         // axios.get('https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=123')
@@ -749,6 +782,14 @@ export default class Home extends Vue {
         }
         img {
             height: 280px;
+        }
+        .mask {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.3);
         }
     }
 }
