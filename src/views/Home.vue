@@ -482,6 +482,15 @@ export default class Home extends Vue {
         console.log('--> 保存 save');
         console.log('pictureBookId = ' + this.pictureBookId);
         console.log(this.pointList);
+        axios.post('https://sit-studytool.uuabc.com/api/picture-book/user-mapping', {
+            "id": this.pictureBookId,
+            "mappings": { "format": this.pointList }
+        }).then(res => {
+            this.$message({
+                message: '保存成功',
+                type: 'success'
+            });
+        })
     }
 
     // 获取图片、音频资源
@@ -587,10 +596,26 @@ export default class Home extends Vue {
         }, false);
     }
     
+    getPointListData() {
+        axios.get(`https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=${this.pictureBookId}`)
+            .then(res => {
+                console.log(res);
+                const data = res.data;
+                const { auto_mapping, id, picture_book_id, user_mapping } = data;
+                const userFormat = user_mapping.format;
+                if( userFormat instanceof Array) {
+                    this.pointList = userFormat;
+                    this.deletePointList = userFormat.filter(point => point.type === 0);
+                }
+            })
+    }
+
     mounted() {
         this.audio = document.querySelector('audio') as any;
 
         this.getResources();
+
+        this.getPointListData();
         // 将指针dom放入element滑块组件中
         const elSliderButtonWrapper = document.querySelector('.el-slider__button-wrapper') as HTMLElement;
         const pointer = document.querySelector('.pointer') as HTMLElement;
@@ -605,17 +630,17 @@ export default class Home extends Vue {
             } else {
                 this.pause();
             }
-        });
+        }); 
 
         this.listenAudioEditContainer();
-        axios.get('https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=123')
-            .then(res => {
-                console.log(res);
-            })
-        axios.post('https://sit-studytool.uuabc.com/api/picture-book/user-mapping', {
-            "id": "123",
-            "mappings": { "format": "any JSON data" }
-        })
+        // axios.get('https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=123')
+        //     .then(res => {
+        //         console.log(res);
+        //     })
+        // axios.post('https://sit-studytool.uuabc.com/api/picture-book/user-mapping', {
+        //     "id": "123",
+        //     "mappings": { "format": "any JSON data" }
+        // })
     }
 
     @Watch('currentTime')
