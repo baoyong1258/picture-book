@@ -15,7 +15,7 @@
             <span class="el-icon-video-pause" v-else @click="pause"></span>
         </span> -->
         <span class="bigger el-icon-zoom-in" @click="biggerImage"></span>
-        <span v-if="state === 2" class="remove el-icon-circle-close" @click="removeImage"></span>
+        <!-- <span v-if="state === 2" class="remove el-icon-circle-close" @click="removeImage"></span> -->
     </div>
 </template>
 <script lang="ts">
@@ -25,7 +25,7 @@ export default class ImageBox extends Vue {
     @Prop() private readonly src: string;
     @Prop() private readonly index: number;
     @Prop() private readonly state: number;
-    @Prop() private readonly playState: number;
+    // @Prop() private readonly playState: number;
 
     // 源对象开始拖拽 - 资源
     public dragstartByResource(evt: any) {

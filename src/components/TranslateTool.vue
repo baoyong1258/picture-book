@@ -8,6 +8,7 @@
     >
         <span class="leftLine" ref="leftLine"></span>
         <span class="rightLine" ref="rightLine"></span>
+        <span v-if="isLast" class="remove el-icon-circle-close" @click="remove"></span>
     </div>
 </template>
 <script lang="ts" scoped>
@@ -20,6 +21,7 @@ export default class TranslateTool extends Vue {
     @Prop({ default: 100 }) private readonly width: number;
     // @Prop() private readonly height: string;
     @Prop() private readonly positionX: number;
+    @Prop({ default: false }) private readonly isLast: boolean;
 
     private initWidth: number = 0;
     private direction: 'left' | 'right' = 'right';
@@ -33,6 +35,10 @@ export default class TranslateTool extends Vue {
         }
         // this.resultWidth = width;
         this.$emit('move', this.index, width, direction);
+    }
+
+    remove() {
+        this.$emit('remove');
     }
 
     listenMove() {
@@ -134,6 +140,14 @@ export default class TranslateTool extends Vue {
     background-color: rgba(255, 0, 0, 0);
     border-left: 1px dashed orange;
     right: 20px;
+}
+.remove {
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: 16px;
+    color: red;
+    cursor: pointer;
 }
 
 </style>

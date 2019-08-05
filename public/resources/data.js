@@ -18,5 +18,8 @@ var pictureBookData = {
         "resources/jpg/9780170112451/9780170112451-15.jpg",
         "resources/jpg/9780170112451/9780170112451-16.jpg"
     ],
+    "cover": [
+        "resources/jpg/9780170112451/9780170112451-16.jpg"
+    ],
     "audio": "resources/9780170112451.mp3"
 }

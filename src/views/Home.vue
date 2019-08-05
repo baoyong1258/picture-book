@@ -11,8 +11,6 @@
                     :state="item.state"
                     :playState="item.playState"
                     @click.native="selecImage(index)"
-                    @play="playPoint(index)"
-                    @pause="pausePoint(index)"
                     @biggerImage="biggerImage(index)"
                     @removeImage="removeImage(index)"
                 ></ImageBox>
@@ -89,10 +87,12 @@
                                 <TranslateTool
                                     v-if="translateToolShow"
                                     :index="pointBoxActiveIndex"
+                                    :isLast="pointBoxActiveIndex === pointList.length - 1"
                                     :width="pointBoxActiveItem.width"
                                     :height="pointBoxActiveItem.height"
                                     :positionX="pointBoxActiveItem.positionX"
                                     @move="pointBoxMove"
+                                    @remove="removePoint"
                                 ></TranslateTool>
                             </div>
                             <!-- 音频截取操作区域 -->
@@ -103,7 +103,6 @@
                                     :width="item.width"
                                     :index="index"
                                     :positionX="item.positionX"
-                                    @remove="removeDeletePointBox(index)"
                                 ></DeletePointBox>
                             </div>
                             <!-- 进度滑块 -->
@@ -201,6 +200,8 @@ export default class Home extends Vue {
     private pointer: HTMLElement; // 指针dom
     private audio: HTMLAudioElement// 音频dom
 
+    private playStatus: string = 'play'; // 播放状态：'play' 'preview'
+
     // 选择图片列表
     selecImage(index: number) {
         if (this.imageList[index].state) {
@@ -244,7 +245,7 @@ export default class Home extends Vue {
                 point.state = 2;
                 point.positionX = this.getMaxPositionX();
    
-                // 计算width
+                // 根据pointer元素的位置和positionX计算width
                 let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - point.positionX;
                 if(width > 0) {
                     point.width = width;
@@ -279,8 +280,43 @@ export default class Home extends Vue {
         this.reArrange();
     }
 
+    // 删除打点图片/截取区域
+    removePoint() {
+        this.$confirm('确认删除吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }).then(() => {
+            // 还原状态
+            const point = this.pointList[this.pointBoxActiveIndex];
+            const { id } = point;
+            const imageIndex = this.imageList.findIndex(img => img.id === id);
+            if(imageIndex !== -1) {
+                this.imageList[imageIndex].state = 0;
+            }
+            // 删除打点图片
+            this.pointList.splice(this.pointBoxActiveIndex, 1);
+            this.translateToolShow = false;
+            // 删除截取区域
+            if(point.type === 0) {
+                const deletePointIndex = this.deletePointList.findIndex(point => point.id === id);
+                if(deletePointIndex !== -1) {
+                    this.deletePointList.splice(deletePointIndex, 1);
+                }
+            }
+
+            this.$message({
+                type: 'success',
+                message: '删除成功!'
+            });
+        }).catch(() => {
+
+        })
+    }
+
     // 暂停音频
     pause() {
+        this.playStatus = 'play';
         this.isPlay = true;
         this.audio.pause();
     }
@@ -316,10 +352,10 @@ export default class Home extends Vue {
     // }
     
     // 暂停打点图片音频
-    pausePoint(index: number) {
-        this.imageList[index].playState = 0;
-        this.pause();
-    }
+    // pausePoint(index: number) {
+    //     this.imageList[index].playState = 0;
+    //     this.pause();
+    // }
 
     // 放大图片
     biggerImage(index: number) {
@@ -329,25 +365,25 @@ export default class Home extends Vue {
     }
 
     // 将打点图片从打点区域删除
-    removeImage(index: number) {
-        const item = this.imageList[index];
-        const { id } = item;
-        item.state = 0;
-        const pointIndex = this.pointList.findIndex(point => point.id === id);
-        if(pointIndex !== -1) {
-            this.pointList.splice(pointIndex, 1);
-        }
-    }
+    // removeImage(index: number) {
+    //     const item = this.imageList[index];
+    //     const { id } = item;
+    //     item.state = 0;
+    //     const pointIndex = this.pointList.findIndex(point => point.id === id);
+    //     if(pointIndex !== -1) {
+    //         this.pointList.splice(pointIndex, 1);
+    //     }
+    // }
 
     // 删除截取音频区域
-    removeDeletePointBox(index: number) {
-        const pointId = this.deletePointList[index].id;
-        this.deletePointList.splice(index, 1);
-        const ponitIndex = this.pointList.findIndex(item => item.id === pointId);
-        if(ponitIndex !== -1) {
-            this.pointList.splice(ponitIndex, 1);
-        }
-    }
+    // removeDeletePointBox(pointId: number) {
+    //     const deletePonitIndex = this.deletePointList.findIndex(item => item.id === pointId);
+    //     this.deletePointList.splice(deletePonitIndex, 1);
+    //     const ponitIndex = this.pointList.findIndex(item => item.id === pointId);
+    //     if(ponitIndex !== -1) {
+    //         this.pointList.splice(ponitIndex, 1);
+    //     }
+    // }
 
     // 拖拽音频进度条触发
     change(value: number) {
@@ -358,7 +394,8 @@ export default class Home extends Vue {
     loadedmetadata(evt: any) {
         const duration = evt.currentTarget.duration;
         this.duration = duration;
-        this.max = Math.floor(duration);
+        this.max = duration;
+        // this.max = Math.floor(duration);
         this.marks = this.createMarks(this.max)
     }
 
@@ -367,9 +404,22 @@ export default class Home extends Vue {
         this.sliderValue = evt.currentTarget.currentTime;
         this.currentTime = this.sliderValue;
         let deleteEndTime = this.getDeletePointEndTime(this.currentTime);
+        // 跳过截取部分
         if(deleteEndTime !== -1) {
+            // 防止循环触发
+            console.log('deleteEndTime = ' + deleteEndTime);
+            deleteEndTime += 0.01;
+            console.log('deleteEndTime = ' + deleteEndTime);
             this.sliderValue = deleteEndTime;
             evt.currentTarget.currentTime = deleteEndTime;
+            this.currentTime = deleteEndTime;
+        }
+        // 预览模式
+        if(this.playStatus === 'preview') {
+            const point = this.pointList.find(point => this.currentTime > point.start && this.currentTime < point.end);
+            if(point) {
+                this.biggerImageSrc = point.src;
+            }
         }
     }
 
@@ -452,8 +502,8 @@ export default class Home extends Vue {
             let { positionX, width } = point;
             let startTime = this.getTimeByPosition(positionX);
             let endTime = this.getTimeByPosition(positionX + width);
-            point.start = startTime;
-            point.end = endTime;
+            point.start = this.exchangeNum(startTime);
+            point.end = this.exchangeNum(endTime);
         }
     }
 
@@ -464,9 +514,14 @@ export default class Home extends Vue {
             let { positionX, width } = point;
             let startTime = this.getTimeByPosition(positionX);
             let endTime = this.getTimeByPosition(positionX + width);
-            point.start = startTime;
-            point.end = endTime;
+            point.start = this.exchangeNum(startTime);
+            point.end = this.exchangeNum(endTime);
         }
+    }
+
+    // 保留2位小数
+    exchangeNum(num: number) {
+        return Number(num.toFixed(2));
     }
 
     // 预览 - 从头播放一次
@@ -474,14 +529,14 @@ export default class Home extends Vue {
         this.currentTime = 0;
         this.sliderValue = 0;
         this.audio.currentTime = 0;
+        this.playStatus = 'preview';
+        this.biggerImageBoxShow = true;
         this.play();
     }
 
     // 保存
     save() {
         console.log('--> 保存 save');
-        console.log('pictureBookId = ' + this.pictureBookId);
-        console.log(this.pointList);
         axios.post('https://sit-studytool.uuabc.com/api/picture-book/user-mapping', {
             "id": this.pictureBookId,
             "mappings": { "format": this.pointList }
@@ -563,7 +618,6 @@ export default class Home extends Vue {
             this.reArrangeDeletePoint();
             let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - templateData.positionX;
             templateData.width = width;
-            this.pointList.push(templateData);
             endMatrix.copyFrom(initStartMatrix);
             document.body.removeEventListener('mousemove', moveEvent, false);
             document.body.removeEventListener('mouseup', upEvent, false);
@@ -581,7 +635,9 @@ export default class Home extends Vue {
             templateData.width = 0;
             setTimeout(() => {
                 if(!isUp) {
+                    console.log('deletePointList is pushed -->');
                     this.deletePointList.push(templateData);
+                    this.pointList.push(templateData);
                 }
             }, 30);
             startX = evt.x;
@@ -596,16 +652,22 @@ export default class Home extends Vue {
         }, false);
     }
     
+    // 获取打点信息
     getPointListData() {
         axios.get(`https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=${this.pictureBookId}`)
             .then(res => {
-                console.log(res);
                 const data = res.data;
                 const { auto_mapping, id, picture_book_id, user_mapping } = data;
                 const userFormat = user_mapping.format;
                 if( userFormat instanceof Array) {
                     this.pointList = userFormat;
                     this.deletePointList = userFormat.filter(point => point.type === 0);
+                    const pointIdList = this.pointList.map(point => point.id);
+                    this.imageList.forEach(point => {
+                        if(pointIdList.includes(point.id)) {
+                            point.state = 2;
+                        }
+                    })
                 }
             })
     }
