@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>翻页</title>
+  <style>
+    body{
+      background:#ccc;
+    }
+    .list-item{
+      width: 400px;
+      height: 600px;
+    }
+    #magazine{
+      width:600px;
+      height:400px;
+    }
+    #magazine .turn-page{
+      background-color:#ccc;
+      background-size:100% 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="trun-Page">
+  </div>
+  <div class="mp3_wrap">
+      <audio id="mp3" src=""></audio>
+  </div>
+</body>
+<script src="./data.js"></script>
+<script type="text/javascript" src="http://code.jquery.com/jquery-1.7.1.min.js"></script>
+<script src="./turn.min.js"></script>
+
+<script>
+    $(function() {
+      console.log('---> pictureBookData', pictureBookData)
+      var innitUU = {
+        pageDataApiUrl: 'https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=',
+        pageData: [],
+        endTime: '',
+        PageId: 0,
+        pictureBookId: '',
+        audioSrc: '',
+        audio:'',
+        
+        innit: function() {
+          this.pictureBookId = pictureBookData.pictureBookId
+          this.audioSrc = pictureBookData.audio
+          this.getPageData()
+          this.audio = document.getElementById("mp3")
+          
+          this.bindAudioEvent()
+        },
+        bindAudioEvent: function() {
+          var _this = this
+          this.audio.src = this.audioSrc
+          this.audio.addEventListener('loadedmetadata', function() {
+            _this.audio.play()
+          }, false)
+          this.audio.addEventListener('timeupdate', function(e) {
+            _this.trunPage(Number(_this.audio.currentTime.toFixed(1)), _this)
+          }, false)
+        },
+        trunPage(time, _this) {
+          // console.log('---time', time)
+          if(time == 0) return
+          if(time >= _this.endTime) {
+            // console.log('--->  到达最大时间停止',time)
+            _this.audio.pause()
+            _this.PageId = 0
+            return
+          }
+          this.pageData.forEach(function(item){
+            var _start = Number(item.start.toFixed(2))
+            var _end = Number(item.end.toFixed(2))
+            if(time >= _start && time<= _end) {
+              var _pageId = item.id
+              switch (item.type) {
+                case 1:
+                  if(_pageId !=  _this.PageId) {
+                    console.log('---> 翻页', item)
+                    _this.bookNext()
+                    _this.PageId = _pageId
+                  } 
+                  break;
+                case 0:
+                  console.log('---> 跳音频', item)
+                  _this.audio.currentTime = _end + 0.01
+                  break;
+                default:
+                  break;
+              }
+            }
+            
+          })
+        },
+        innitBookLet: function() {
+          $('#trun-Page').turn({
+            display: 'single', //  double  single
+            acceleration: true,
+            // autoCenter: true,
+            gradients: !$.isTouch,
+            elevation:50,
+            // duration: 1000,
+            width: 400,
+            height: 600,
+            when: {
+              turned: function(e, page) {
+                /*console.log('Current view: ', $(this).turn('view'));*/
+              }
+            }
+          });
+        },
+        bookNext: function() {
+          $('#trun-Page').turn("next");
+        },
+        getPageData: function() {
+          var _this = this
+          $.ajax({
+            type: "get",
+            url: this.pageDataApiUrl + this.pictureBookId,
+            success: function (res) {
+              console.log('---> res', res.user_mapping.format)
+              _this.pageData = res.user_mapping.format
+              _this.renderPageData()
+            }
+          });
+        },
+        renderPageData: function() {
+          var _this = this
+          var endTimeArr = []
+          var html = ''
+          this.pageData.forEach(function(item) {
+            if(item.type !== 0 ) {
+             html += '<img class="list-item" src='+ item.src +'></<img>'
+             endTimeArr.push(item.end)
+            }
+          })
+          $('#trun-Page').html(html)
+          _this.endTime = Math.max.apply(null, endTimeArr);
+          var minEndTime = Math.min.apply(null, endTimeArr);
+          // 获取开始 item id
+          this.pageData.forEach(function(item) {
+            if(item.end == minEndTime) {
+              _this.PageId = item.id
+            }
+          })
+          _this.innitBookLet()
+        }
+      }
+      innitUU.innit()
+    })
+  </script>
+</html>

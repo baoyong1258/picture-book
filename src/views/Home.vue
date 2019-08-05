@@ -542,6 +542,7 @@ export default class Home extends Vue {
         console.log('--> 保存 save');
         axios.post('https://sit-studytool.uuabc.com/api/picture-book/user-mapping', {
             "id": this.pictureBookId,
+            // "mappings": { "format": [] }
             "mappings": { "format": this.pointList }
         }).then(res => {
             this.$message({
@@ -689,6 +690,29 @@ export default class Home extends Vue {
             this.biggerImageIndex --
             this.biggerImageSrc = this.imageList[this.biggerImageIndex].src;
         }); 
+        // enter确认大图
+        Mousetrap.bind('enter', () => {
+            console.log('enter事件触发');
+            if(!this.biggerImageBoxShow) {
+                return;
+            }
+            if(this.imageList[this.biggerImageIndex].state === 2) {
+                return;
+            }
+            this.pause();
+            let point = this.imageList[this.biggerImageIndex];
+            point.state = 2;
+            point.positionX = this.getMaxPositionX();
+
+            // 根据pointer元素的位置和positionX计算width
+            let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - point.positionX;
+            if(width > 0) {
+                point.width = width;
+            }
+
+            this.pointList.push(point);
+            this.reArrange();
+        })
     }   
 
     // 获取打点信息
