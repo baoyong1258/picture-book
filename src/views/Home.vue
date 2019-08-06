@@ -3,9 +3,17 @@
         <div class="right-container">
             <!-- 图片列表 -->
             <div class="imageContainer">
+                <div 
+                    class="spacePage"
+                    @dragstart="dragstartBySpacePage"
+                    draggable="true"
+                >
+                    <p>空白页</p>
+                </div>
                 <ImageBox
                     v-for="(item, index) in imageList"
                     :key="index"
+                    :isAllImage="item.isAllImage"
                     :index="index"
                     :src="item.src"
                     :state="item.state"
@@ -23,6 +31,15 @@
                     >
                     <div class="mask" v-if="imageList[biggerImageIndex].state === 2">
                         <p>已使用</p>
+                    </div>
+                    <div class="signImage">
+                        <el-switch
+                            v-model="imageList[biggerImageIndex].isAllImage"
+                            active-text="纯图片"
+                            inactive-text="非纯图片">
+                        </el-switch>
+                        <!-- <span>纯图片：</span> -->
+                        <!-- <el-switch v-model="imageList[biggerImageIndex].isAllImage"></el-switch> -->
                     </div>
                     <span class="close el-icon-circle-close" @click="biggerImageBoxShow = false"></span>
                 </div>
@@ -83,6 +100,8 @@
                                     :end="item.end"
                                     :width="item.width"
                                     :positionX="item.positionX"
+                                    :direction="item.direction"
+                                    :hasSpacePage="item.hasSpacePage"
                                     @click.native="clcikPointBox(index)"
                                     @move="pointBoxMove"
                                 ></PointBox>
@@ -118,8 +137,24 @@
                         <!-- <el-button @click="resetPoint">重置</el-button> -->
                         <el-button @click="preview">预览</el-button>
                         <el-button type="primary" @click="save">保存</el-button>
+                        <el-button @click="clear" class="clear">清空</el-button>
                     </div>
                 </div>
+            </div>
+            <!-- 预览 -->
+            <div class="previewImageBox" v-if="showPreviewImageBox">
+                <div class="container">
+                    <div class="imgBox">
+                        <img v-if="firstPreviewImage" :src="firstPreviewImage" alt="">
+                        <div v-else class="spacePage"></div>
+                    </div>
+                    <div class="div"></div>
+                    <div class="imgBox">
+                        <img v-if="secondPreviewImage" :src="secondPreviewImage" alt="">
+                        <div v-else class="spacePage"></div>
+                    </div>
+                </div>
+                <span class="close el-icon-circle-close" @click="showPreviewImageBox = false"></span>
             </div>
         </div>
     </div>
@@ -139,6 +174,7 @@ import Matrix from '@/utils/Matrix.ts';
 const imageDataTemplate = { 
     id: 0, 
     type: 1, // 图片断点类型，1: 图片，0: 删除区域
+    isAllImage: false, // 是否为纯图片类型
     src: '', // 图片路径
     state: 0, // 0: 默认，1: 已选中，2：已使用
     start: 0, // 起始时间
@@ -147,6 +183,8 @@ const imageDataTemplate = {
     height: 'auto', // 图片高度
     playState: 0, // 播放状态 0: 暂停 1：播放
     positionX: 0, // x轴坐标
+    direction: 0, // 图片展示方向 0：左侧 1：右侧
+    hasSpacePage: false, // 下一页是否为空白页
 };
 
 
@@ -177,6 +215,12 @@ export default class Home extends Vue {
     private pointBoxActiveIndex = 0; // 被选中的打点图片索引
     private pointBoxActiveItem = {}; // 被选中的打点图片item
 
+    private showPreviewImageBox: boolean = false; // 是否展示预览
+    private trunPageID: number = 0; // 翻页标记 1: 不翻页 2：翻页
+    private firstPreviewImage = ''; // 预览第一张大图
+    private secondPreviewImage = ''; // 预览第二张大图
+    private previewPageId = ''; // 预览图片Id
+
     private imageList = [ // 图片列表
         { 
             id: 0, 
@@ -187,7 +231,9 @@ export default class Home extends Vue {
             width: 200, 
             height: '', 
             playState: 0, 
-            positionX: 0 
+            positionX: 0 ,
+            direction: 0,
+            hasSpacePage: false,
         },
     ]
  
@@ -219,6 +265,11 @@ export default class Home extends Vue {
         this.selectedIndex = index;
     }
 
+    // 拖拽空白页
+    dragstartBySpacePage(evt: any) {
+        evt.dataTransfer.setData('type', 'spacePage');        
+    }
+
     // 拖拽大图
     public dragstartByResource(evt: any) {
         let src = evt.target.dataset.src;
@@ -240,23 +291,46 @@ export default class Home extends Vue {
         if (!type) { return; } // 过滤可拖动元素拖动到非指定区域
         switch(type) {
             case 'image':
-                this.pause();
-                const src = evt.dataTransfer.getData('src');
                 const index = evt.dataTransfer.getData('index');
                 this.selecImage(Number(index));
                 let point = this.imageList[index];
-                point.state = 2;
-                point.positionX = this.getMaxPositionX();
-   
-                // 根据pointer元素的位置和positionX计算width
-                let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - point.positionX;
-                if(width > 0) {
-                    point.width = width;
+                this.pushImgPoint(point);
+                break;
+            case 'spacePage':
+                if(this.pointList.length) {
+                    let point = this.pointList[this.pointList.length - 1];
+                    if(point.direction === 0) {
+                        point.hasSpacePage = true;
+                    }
                 }
-
-                this.pointList.push(point);
-                this.reArrange();
+                break;
         }
+    }
+
+    // 添加imgPoint
+    pushImgPoint(point: any) {
+        this.pause();
+        point.state = 2;
+        point.positionX = this.getMaxPositionX();
+
+        let PointDirection = 0;
+        let imgPointList = this.pointList.filter(point => point.type === 1);
+        let lastImgPoint = imgPointList.length ? imgPointList[imgPointList.length - 1] : null;
+        if(lastImgPoint) {
+            let { direction, hasSpacePage } = lastImgPoint;
+            if(direction === 0 && !hasSpacePage) {
+                PointDirection = 1;
+            }
+        }
+        point.direction = PointDirection;
+        // 根据pointer元素的位置和positionX计算width
+        let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - point.positionX;
+        if(width > 0) {
+            point.width = width;
+        }
+
+        this.pointList.push(point);
+        this.reArrange();
     }
 
     // 平移translateTool工具后的回调
@@ -421,8 +495,43 @@ export default class Home extends Vue {
         if(this.playStatus === 'preview') {
             const point = this.pointList.find(point => this.currentTime > point.start && this.currentTime < point.end);
             if(point) {
-                this.biggerImageSrc = point.src;
+                // this.biggerImageSrc = point.src;
+                if(point.id !== this.previewPageId) {
+                    const pointIndex = this.pointList.findIndex(item => item.id === point.id);
+                    console.log(pointIndex);
+                    let nextPoint;
+                    if(pointIndex + 1 <= this.pointList.length - 1) {
+                        for(let i = pointIndex + 1, len = this.pointList.length; i < len; i++) {
+                            let point = this.pointList[i];
+                            if(point.type === 1) {
+                                nextPoint = point;
+                                console.log('nextPoint...');
+                                console.log(nextPoint);
+                                break;
+                            }
+                        }
+                    }
+                    this.previewPageId = point.id;
+                    if(this.trunPageID ==  1) {
+                        console.log('---> 假翻页', point)
+                        // this.firstPreviewImage = point.src;
+                        // this.secondPreviewImage = nextPoint && nextPoint.src;
+                        this.trunPageID++
+                    }else {
+                        console.log('---> 真翻页', point)
+                        this.firstPreviewImage = point.src;
+                        this.secondPreviewImage = nextPoint && nextPoint.src;
+                        this.trunPageID = 1
+                    }
+                    if(point.hasSpacePage) {
+                        this.trunPageID = 2
+                        this.secondPreviewImage = '';
+                        console.log('---> 空白页', point)
+                    }
+                }
             }
+
+
         }
     }
 
@@ -532,8 +641,11 @@ export default class Home extends Vue {
         this.currentTime = 0;
         this.sliderValue = 0;
         this.audio.currentTime = 0;
+        this.trunPageID = 0;
+        this.previewPageId = '';
         this.playStatus = 'preview';
-        this.biggerImageBoxShow = true;
+        // this.biggerImageBoxShow = true;
+        this.showPreviewImageBox = true;
         this.play();
     }
 
@@ -549,6 +661,27 @@ export default class Home extends Vue {
                 message: '保存成功',
                 type: 'success'
             });
+        })
+    }
+
+    clear() {
+        this.$confirm('打点信息将被清空，确认此操作吗？', '提示', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'error'
+        }).then(() => {
+            // 还原状态
+            this.imageList.forEach(image => image.state = 0);
+            // 删除打点图片
+            this.pointList.length = 0;
+            // 删除截取区域
+            this.deletePointList.length = 0;
+            this.$message({
+                type: 'success',
+                message: '清空成功!'
+            });
+        }).catch(() => {
+
         })
     }
 
@@ -699,19 +832,21 @@ export default class Home extends Vue {
             if(this.imageList[this.biggerImageIndex].state === 2) {
                 return;
             }
-            this.pause();
             let point = this.imageList[this.biggerImageIndex];
-            point.state = 2;
-            point.positionX = this.getMaxPositionX();
+            // this.pause();
+            // point.state = 2;
+            // point.positionX = this.getMaxPositionX();
 
-            // 根据pointer元素的位置和positionX计算width
-            let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - point.positionX;
-            if(width > 0) {
-                point.width = width;
-            }
+            // // 根据pointer元素的位置和positionX计算width
+            // let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - point.positionX;
+            // if(width > 0) {
+            //     point.width = width;
+            // }
 
-            this.pointList.push(point);
-            this.reArrange();
+            // this.pointList.push(point);
+            // this.reArrange();
+
+            this.pushImgPoint(point);
         })
     }   
 
@@ -792,6 +927,13 @@ export default class Home extends Vue {
     overflow-y: auto;
     display: flex;
     flex-wrap: wrap;
+    .spacePage {
+        width: 100px;
+        height: 100px;
+        background-color: #fff;
+        line-height: 100px;
+        text-align: center;
+    }
     .ImageBox {
         margin-left: 20px;
     }
@@ -814,6 +956,11 @@ export default class Home extends Vue {
             width: 100%;
             height: 100%;
             background-color: rgba(0, 0, 0, 0.3);
+        }
+        .signImage {
+            position: absolute;
+            left: 5px;
+            bottom: 5px;
         }
     }
 }
@@ -851,6 +998,7 @@ export default class Home extends Vue {
             padding: 0 20px;
             width: 1000px;
             overflow-x: auto;
+            overflow-y: hidden;
             position: relative;
         }
         .pointContainer {
@@ -858,7 +1006,7 @@ export default class Home extends Vue {
             width: 100%;
             height: 100px;
             background-color: #dddddd;
-            overflow: hidden;
+            // overflow: hidden;
             position: relative;
             .TranslateTool {
 
@@ -884,7 +1032,47 @@ export default class Home extends Vue {
         }
         .btn_container {
             margin-top: 60px;
+            .clear {
+                float: right;
+                margin-right: 20px;
+            }
         }
     }
 }
+
+    .previewImageBox {
+        @include center-x();
+        top: 50px;
+        z-index: 99999;
+        width: 940px;
+        height: 380px;
+        border: 1px solid #000;
+        background-color: #fff;
+        .container {
+            display: flex;
+            .imgBox {
+                flex: 1;
+                display: flex;
+                img {
+                    height: 380px;
+                }
+                .spacePage {
+                    flex: 1;
+                }
+            }
+            .div {
+                flex-grow: 0;
+                width: 2px;
+                background-color: orange;
+            }
+        }
+        .close {
+            position: absolute;
+            right: 0;
+            top: 0;
+            font-size: 24px;
+            color: #000;
+            cursor: pointer;
+        }
+    }
 </style>

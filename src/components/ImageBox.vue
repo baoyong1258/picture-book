@@ -15,6 +15,7 @@
             <span class="el-icon-video-pause" v-else @click="pause"></span>
         </span> -->
         <span class="bigger el-icon-zoom-in" @click="biggerImage"></span>
+        <span class="isAllImage" v-if="isAllImage">纯图片</span>
         <!-- <span v-if="state === 2" class="remove el-icon-circle-close" @click="removeImage"></span> -->
     </div>
 </template>
@@ -25,6 +26,7 @@ export default class ImageBox extends Vue {
     @Prop() private readonly src: string;
     @Prop() private readonly index: number;
     @Prop() private readonly state: number;
+    @Prop({ default: false }) private readonly isAllImage: boolean;
     // @Prop() private readonly playState: number;
 
     // 源对象开始拖拽 - 资源
@@ -93,6 +95,14 @@ export default class ImageBox extends Vue {
         font-size: 16px;
         color: red;
         top: 0;
+    }
+    .isAllImage {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        color: #409EFF;
+        font-size: 14px;
+        font-weight: 600;
     }
 }
 </style>

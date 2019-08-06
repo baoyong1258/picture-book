@@ -143,7 +143,7 @@ export default class TranslateTool extends Vue {
 }
 .remove {
     position: absolute;
-    top: 0;
+    bottom: 0;
     right: 0;
     font-size: 16px;
     color: red;
