@@ -4,7 +4,7 @@
             left: positionX + 'px',
         }" >
         <div class="imgBox">
-            <img v-if="type == 1" :src="src" :style="{ width: width+ 'px', height: height }" ref="img">
+            <img v-if="type == 1" :src="src" :style="{ width: width < this.maxWidth ? width+ 'px' : this.maxWidth + 'px', height: height }" ref="img">
             <div v-else class="deleteBox" :style="{ width: width+ 'px' }" ></div>
         </div>
         <div class="direction" v-if="type == 1">
@@ -31,6 +31,7 @@ export default class PointBox extends Vue {
     @Prop() private readonly start: number;
     @Prop() private readonly end: number;
     @Prop() private readonly width: number;
+    @Prop() private readonly maxWidth: number;
     @Prop() private readonly height: string;
     @Prop() private readonly positionX: number;
     @Prop({ default: false }) private readonly hasSpacePage: boolean;
@@ -48,6 +49,7 @@ export default class PointBox extends Vue {
     height: 100%;
     position: absolute;
     top: 0;
+    background-color: #fff;
     .imgBox {
         position: relative;
         .deleteBox {
@@ -56,9 +58,10 @@ export default class PointBox extends Vue {
         }
     }
     img {
-        // position: absolute;
-        // top: 0;
-        // left: 0;
+        position: absolute;
+        top: 0;
+        left: 0;
+        max-height: 100px;
     }
     .direction {
         position: absolute;
@@ -83,7 +86,7 @@ export default class PointBox extends Vue {
         top: -10px;
         right: 0;
         width: 1px;
-        background-color: #ffffff;
+        background-color: #409EFF;
         height: 110px;
         p {
             @include center-x();

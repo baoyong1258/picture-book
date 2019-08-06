@@ -99,6 +99,7 @@
                                     :start="item.start"
                                     :end="item.end"
                                     :width="item.width"
+                                    :maxWidth="whRate * 100"
                                     :positionX="item.positionX"
                                     :direction="item.direction"
                                     :hasSpacePage="item.hasSpacePage"
@@ -142,7 +143,7 @@
                 </div>
             </div>
             <!-- 预览 -->
-            <div class="previewImageBox" v-if="showPreviewImageBox">
+            <div class="previewImageBox" v-show="showPreviewImageBox">
                 <div class="container">
                     <div class="imgBox">
                         <img v-if="firstPreviewImage" :src="firstPreviewImage" alt="">
@@ -250,6 +251,7 @@ export default class Home extends Vue {
     private audio: HTMLAudioElement// 音频dom
 
     private playStatus: string = 'play'; // 播放状态：'play' 'preview'
+    private whRate: number = 1; // 图片的宽高比
 
     // 选择图片列表
     selecImage(index: number) {
@@ -692,6 +694,9 @@ export default class Home extends Vue {
         console.log(pictureBookData);
         //@ts-ignore
         const { pictureBookId, images, audio } = pictureBookData;
+
+        this.getWhRate();
+
         this.pictureBookId = pictureBookId;
         this.exchangeImages(images);
         this.adjuctPointEditSize();
@@ -712,6 +717,55 @@ export default class Home extends Vue {
         pointEditBox.style.width = (document.body.clientWidth - 200) + 'px';
         const pointEditContainer = document.querySelector('.pointEditContainer') as HTMLElement;
         pointEditContainer.style.width = this.imageList.length * 100 + 'px';
+    }
+
+    // 根据图片的宽高比动态设置预览区域的大小
+    adjuctPreviewBoxSize() {
+        let previewImageBox = document.querySelector('.previewImageBox') as HTMLElement;
+        previewImageBox.style.width = (380 * this.whRate * 2 + 2) + 'px';
+    }
+
+    // 获取图片的宽高比
+    getWhRate() {
+        let _this = this;
+        var targetNode = document.querySelector('.imageContainer') as HTMLElement
+        // Options for the observer (which mutations to observe)
+        var config = { attributes: true, childList: true, subtree: true };
+
+        // Callback function to execute when mutations are observed
+        var callback = function(mutationsList: any) {
+            for(var mutation of mutationsList) {
+                // console.log('A child node has been added or removed.');
+
+                if (mutation.type == 'childList') {
+                    // console.log('A child node has been added or removed.');
+                }
+                else if (mutation.type == 'attributes') {
+                    // console.log('The ' + mutation.attributeName + ' attribute was modified.');
+                    observer.disconnect();
+                    const img = targetNode.querySelector('img');
+                    if(img) {
+                        img.onload = function() {
+                            // console.log('img.clientWidth = ' + img.clientWidth);
+                            // console.log('img.clientHeight = ' + img.clientHeight);
+                            let whRate = img.clientWidth / img.clientHeight;
+                            _this.whRate = _this.exchangeNum(whRate);
+                            _this.adjuctPreviewBoxSize();
+                        }
+                    }
+                }
+            }
+        };
+
+        // Create an observer instance linked to the callback function
+        var observer = new MutationObserver(callback);
+
+        // Start observing the target node for configured mutations
+        observer.observe(targetNode, config);
+
+        // Later, you can stop observing
+        // observer.disconnect();
+
     }
 
     // 加载音频
@@ -753,8 +807,14 @@ export default class Home extends Vue {
             isUp = true;
             this.pause();
             this.reArrangeDeletePoint();
+            endMatrix.copyFrom(initStartMatrix);
             let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - templateData.positionX;
-            templateData.width = width;
+            console.log('endMatrix x...');
+            console.log(endMatrix.x);
+            console.log('width === ' + width);
+            console.log(width);
+            let endWith = width >= endMatrix.x ? width : endMatrix.x;
+            templateData.width = endWith;
             endMatrix.copyFrom(initStartMatrix);
             document.body.removeEventListener('mousemove', moveEvent, false);
             document.body.removeEventListener('mouseup', upEvent, false);
