@@ -218,7 +218,7 @@ export default class Home extends Vue {
     private pointStart: number = 0; // 打点 - 起始点时间
     private pointEnd: number = 0; // 打点 - 结束点时间
     private pointStartLeft: number = 0; // 进度指针的位置
-    private pointMinWidth: number = 10; // 设置的pointBox最小宽度，限制pointBox的伸缩
+    private pointMinWidth: number = 5; // 设置的pointBox最小宽度，限制pointBox的伸缩
     private divNum: number = 30; // 展示的进度数值的段数
 
     private pointBoxActiveIndex = 0; // 被选中的打点图片索引
