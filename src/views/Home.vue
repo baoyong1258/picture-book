@@ -829,6 +829,15 @@ export default class Home extends Vue {
             console.log('width === ' + width);
             console.log(width);
             let endWith = width >= endMatrix.x ? width : endMatrix.x;
+            console.log('endWith = ' + endWith);
+            if(endWith < 5) {
+                const id = templateData.id;
+                console.log('id = ' + id);
+                const deletePointIndex = this.deletePointList.findIndex(deletePoint => deletePoint.id === id);
+                this.deletePointList.splice(deletePointIndex, 1);
+                const pointIndex = this.pointList.findIndex(point => point.id === id);
+                this.pointList.splice(pointIndex, 1);
+            }
             templateData.width = endWith;
             endMatrix.copyFrom(initStartMatrix);
             document.body.removeEventListener('mousemove', moveEvent, false);
