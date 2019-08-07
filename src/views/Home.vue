@@ -834,9 +834,11 @@ export default class Home extends Vue {
                 const id = templateData.id;
                 console.log('id = ' + id);
                 const deletePointIndex = this.deletePointList.findIndex(deletePoint => deletePoint.id === id);
-                this.deletePointList.splice(deletePointIndex, 1);
-                const pointIndex = this.pointList.findIndex(point => point.id === id);
-                this.pointList.splice(pointIndex, 1);
+                if(deletePointIndex !== -1) {
+                    this.deletePointList.splice(deletePointIndex, 1);
+                    const pointIndex = this.pointList.findIndex(point => point.id === id);
+                    this.pointList.splice(pointIndex, 1);
+                }
             }
             templateData.width = endWith;
             endMatrix.copyFrom(initStartMatrix);
@@ -860,7 +862,7 @@ export default class Home extends Vue {
                     this.deletePointList.push(templateData);
                     this.pointList.push(templateData);
                 }
-            }, 30);
+            }, 100);
             startX = evt.x;
             startY = evt.y;
             if (!el.style.transform) {
