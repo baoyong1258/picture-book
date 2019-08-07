@@ -22,16 +22,19 @@
                     @biggerImage="biggerImage(index)"
                     @removeImage="removeImage(index)"
                 ></ImageBox>
-                <div class="biggerImageBox" v-if="biggerImageBoxShow">
+                <div 
+                    class="biggerImageBox" 
+                    v-if="biggerImageBoxShow"
+                >
                     <img 
                         :src="biggerImageSrc"
                         :data-src="biggerImageSrc"
                         @dragstart="dragstartByResource"
-                        :draggable="imageList[biggerImageIndex].state !== 2"
                     >
-                    <div class="mask" v-if="imageList[biggerImageIndex].state === 2">
+                    <p v-if="imageList[biggerImageIndex].state === 2">已使用</p>
+                    <!-- <div class="mask" v-if="imageList[biggerImageIndex].state === 2">
                         <p>已使用</p>
-                    </div>
+                    </div> -->
                     <div class="signImage">
                         <el-switch
                             v-model="imageList[biggerImageIndex].isAllImage"
@@ -116,6 +119,9 @@
                                     :positionX="pointBoxActiveItem.positionX"
                                     @move="pointBoxMove"
                                     @remove="removePoint"
+                                    @dragover.native.prevent.stop 
+                                    @drop.native.stop='dropReplaceImage'
+                                    @dblclick.native="openReplacePanel"
                                 ></TranslateTool>
                             </div>
                             <!-- 音频截取操作区域 -->
@@ -142,8 +148,16 @@
                     </div>
                 </div>
             </div>
+            <!-- 替换图片 -->
+            <!-- <div v-drag class="replacePointPanel" v-show="showReplacePanel">
+                <ImageReplaceBox></ImageReplaceBox>
+                <div class="footer">
+                    <el-button @click="showReplacePanel = false">取消</el-button>
+                    <el-button type="primary" @click="showReplacePanel = false">确认</el-button>
+                </div>
+            </div> -->
             <!-- 预览 -->
-            <div class="previewImageBox" v-show="showPreviewImageBox">
+            <div v-drag class="previewImageBox" v-show="showPreviewImageBox">
                 <div class="container">
                     <div class="imgBox">
                         <img v-if="firstPreviewImage" :src="firstPreviewImage" alt="">
@@ -155,6 +169,7 @@
                         <div v-else class="spacePage"></div>
                     </div>
                 </div>
+                <div class="mask"></div>
                 <span class="close el-icon-circle-close" @click="showPreviewImageBox = false"></span>
             </div>
         </div>
@@ -168,6 +183,7 @@ import { Component, Vue, Watch } from 'vue-property-decorator';
 import ImageBox from '@/components/ImageBox.vue';
 import PointBox from '@/components/PointBox.vue';
 import DeletePointBox from '@/components/DeletePointBox.vue';
+import ImageReplaceBox from '@/components/ImageReplaceBox.vue';
 import TranslateTool from '@/components/TranslateTool.vue';
 import Utils from '@/utils/index.ts';
 import Matrix from '@/utils/Matrix.ts';
@@ -201,7 +217,8 @@ const imageDataTemplate = {
         ImageBox,
         PointBox,
         DeletePointBox,
-        TranslateTool
+        ImageReplaceBox,
+        TranslateTool,
     }
 })
 export default class Home extends Vue {
@@ -222,7 +239,7 @@ export default class Home extends Vue {
     private divNum: number = 30; // 展示的进度数值的段数
 
     private pointBoxActiveIndex = 0; // 被选中的打点图片索引
-    private pointBoxActiveItem = {}; // 被选中的打点图片item
+    private pointBoxActiveItem = null // 被选中的打点图片item
 
     private showPreviewImageBox: boolean = false; // 是否展示预览
     private trunPageID: number = 0; // 翻页标记 1: 不翻页 2：翻页
@@ -261,6 +278,8 @@ export default class Home extends Vue {
 
     private playStatus: string = 'play'; // 播放状态：'play' 'preview'
     private whRate: number = 1; // 图片的宽高比
+
+    private showReplacePanel: boolean = false; // 是否打开替换图片的弹框 
 
     // 选择图片列表
     selecImage(index: number) {
@@ -305,7 +324,23 @@ export default class Home extends Vue {
                 const index = evt.dataTransfer.getData('index');
                 this.selecImage(Number(index));
                 let point = this.imageList[index];
-                this.pushImgPoint(point);
+                let images = this.pointList.filter(pointImg => pointImg.src === point.src);
+                if(images.length >= 1) {
+                    this.$confirm('该图片已使用，确定需要重复使用吗', '提示', {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'warning'
+                    }).then(() => {
+                        const newPoint = Object.assign({}, point, {
+                            id: new Date().getTime(),
+                        });
+                        this.pushImgPoint(newPoint);                        
+                    }).catch(() => {
+
+                    })
+                } else{
+                    this.pushImgPoint(point);
+                }
                 break;
             case 'spacePage':
                 if(this.pointList.length) {
@@ -313,6 +348,80 @@ export default class Home extends Vue {
                     if(point.direction === 0) {
                         point.hasSpacePage = true;
                     }
+                }
+                break;
+        }
+    }
+
+    // 将图片拖拽到translate区域
+    dropReplaceImage(evt: any) {
+        const type = evt.dataTransfer.getData('type');
+        if (!type) { return; } // 过滤可拖动元素拖动到非指定区域
+        switch(type) {
+            case 'image':
+                console.log('dropReplaceImage....');
+                const index = evt.dataTransfer.getData('index');
+                this.selecImage(Number(index));
+                let point = this.imageList[index];
+                let pointBoxActiveItem = this.pointBoxActiveItem as any;
+
+                const sure = (hasMore: boolean = false) => {
+                    let images = this.pointList.filter(point => point.src === pointBoxActiveItem.src);
+                    let state = images.length > 1 ? 2 : 0;
+                    // 将对应位置的pointImg替换成拖拽的目标
+                    const pintBoxData = {
+                        start: pointBoxActiveItem.start,
+                        end: pointBoxActiveItem.end,
+                        width: pointBoxActiveItem.width,
+                        positionX: pointBoxActiveItem.positionX,
+                        direction: pointBoxActiveItem.direction,
+                        hasSpacePage: pointBoxActiveItem.hasSpacePage,
+                        state: pointBoxActiveItem.state,
+                    };
+                    if(hasMore) {
+                        this.pointList[this.pointBoxActiveIndex] = Object.assign({}, point, pintBoxData, {
+                            id: new Date().getTime()
+                        });
+                    } else {
+                        this.pointList[this.pointBoxActiveIndex] = Object.assign(point, pintBoxData);
+                    }
+                    // 将被替换的pointImg的状态还原
+                    Object.assign(this.pointBoxActiveItem, {
+                        start: imageDataTemplate.start,
+                        end: imageDataTemplate.end,
+                        width: imageDataTemplate.width,
+                        positionX: imageDataTemplate.positionX,
+                        direction: imageDataTemplate.direction,
+                        hasSpacePage: imageDataTemplate.hasSpacePage,
+                        state: state,
+                    });
+                    // 将pointBoxActiveItem指向替换好的pointImg
+                    this.pointBoxActiveItem = this.pointList[this.pointBoxActiveIndex];
+                };
+
+                if(this.translateToolShow) {
+                    if(point.state === 2) {
+                        this.$confirm('该图片已使用，确定需要重复使用吗', '提示', {
+                            confirmButtonText: '确定',
+                            cancelButtonText: '取消',
+                            type: 'warning'
+                        }).then(() => {
+                            sure(true);
+                        }).catch(() => {
+                        })
+                    } else{
+                        this.$confirm('确认替换图片吗？', '提示', {
+                            confirmButtonText: '确定',
+                            cancelButtonText: '取消',
+                            type: 'warning'
+                        }).then(() => {
+                            sure(false);
+                        }).catch(() => {
+
+                        })
+                    };
+                    
+                    
                 }
                 break;
         }
@@ -406,7 +515,12 @@ export default class Home extends Vue {
             const { id } = point;
             const imageIndex = this.imageList.findIndex(img => img.id === id);
             if(imageIndex !== -1) {
-                this.imageList[imageIndex].state = 0;
+                let images = this.pointList.filter(pointImg => pointImg.src === point.src);
+                if(images.length > 1) {
+                    
+                } else {
+                    this.imageList[imageIndex].state = 0;
+                }
             }
             // 删除打点图片
             this.pointList.splice(this.pointBoxActiveIndex, 1);
@@ -430,7 +544,7 @@ export default class Home extends Vue {
 
     // 暂停音频
     pause() {
-        this.playStatus = 'play';
+        // this.playStatus = 'play';
         this.isPlay = true;
         this.audio.pause();
     }
@@ -501,6 +615,7 @@ export default class Home extends Vue {
 
     // 拖拽音频进度条触发
     change(value: number) {
+        this.pause();
         this.audio.currentTime = value;
     }
 
@@ -548,20 +663,31 @@ export default class Home extends Vue {
                             }
                         }
                     }
+                    let prePoint;
+                    if(pointIndex - 1 >= 0) {
+                        for(let i = pointIndex - 1; i >= 0; i--) {
+                            let point = this.pointList[i];
+                            if(point.type === 1) {
+                                prePoint = point;
+                                console.log('prePoint...');
+                                console.log(prePoint);
+                                break;
+                            }
+                        }
+                    }
                     this.previewPageId = point.id;
-                    if(this.trunPageID ==  1) {
+                    // 右侧页面
+                    if(point.direction ==  1) {
                         console.log('---> 假翻页', point)
-                        // this.firstPreviewImage = point.src;
-                        // this.secondPreviewImage = nextPoint && nextPoint.src;
-                        this.trunPageID++
+                        this.firstPreviewImage = prePoint && prePoint.src;
+                        this.secondPreviewImage = point.src;
                     }else {
+                        // 左侧页面
                         console.log('---> 真翻页', point)
                         this.firstPreviewImage = point.src;
                         this.secondPreviewImage = nextPoint && nextPoint.src;
-                        this.trunPageID = 1
                     }
                     if(point.hasSpacePage) {
-                        this.trunPageID = 2
                         this.secondPreviewImage = '';
                         console.log('---> 空白页', point)
                     }
@@ -572,6 +698,10 @@ export default class Home extends Vue {
         }
     }
 
+    // 打开替换图片的弹框
+    openReplacePanel() {
+        this.showReplacePanel = true;
+    }
     // 创建音频进度条下标时间区域
     createMarks(max: number) {
         let marks: any = {};
@@ -675,9 +805,9 @@ export default class Home extends Vue {
 
     // 预览 - 从头播放一次
     preview() {
-        this.currentTime = 0;
-        this.sliderValue = 0;
-        this.audio.currentTime = 0;
+        // this.currentTime = 0;
+        // this.sliderValue = 0;
+        // this.audio.currentTime = 0;
         this.trunPageID = 0;
         this.previewPageId = '';
         this.playStatus = 'preview';
@@ -765,6 +895,7 @@ export default class Home extends Vue {
     adjuctPreviewBoxSize() {
         let previewImageBox = document.querySelector('.previewImageBox') as HTMLElement;
         previewImageBox.style.width = (380 * this.whRate * 2 + 2) + 'px';
+        // const imgList = previewImageBox.querySelectorAll('img');
     }
 
     // 获取图片的宽高比
@@ -878,7 +1009,7 @@ export default class Home extends Vue {
             isUp = false;
             templateData = Object.assign({}, imageDataTemplate);
             // @ts-ignore
-            templateData.id = new Date().toLocaleString();
+            templateData.id = new Date().getTime();
             templateData.type = 0;
             // templateData.positionX = evt.offsetX;
             templateData.positionX = this.getMaxPositionX();
@@ -943,23 +1074,23 @@ export default class Home extends Vue {
                 return;
             }
             if(this.imageList[this.biggerImageIndex].state === 2) {
-                return;
+                // this.$confirm('该图片已使用，确定需要重复使用吗', '提示', {
+                //     confirmButtonText: '确定',
+                //     cancelButtonText: '取消',
+                //     type: 'warning'
+                // }).then(() => {
+                //     let point = this.imageList[this.biggerImageIndex];
+                //     const newPoint = Object.assign({}, point, {
+                //         id: new Date().getTime(),
+                //     });
+                //     this.pushImgPoint(newPoint);                        
+                // }).catch(() => {
+
+                // })
+            } else{
+                let point = this.imageList[this.biggerImageIndex];
+                this.pushImgPoint(point);
             }
-            let point = this.imageList[this.biggerImageIndex];
-            // this.pause();
-            // point.state = 2;
-            // point.positionX = this.getMaxPositionX();
-
-            // // 根据pointer元素的位置和positionX计算width
-            // let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - point.positionX;
-            // if(width > 0) {
-            //     point.width = width;
-            // }
-
-            // this.pointList.push(point);
-            // this.reArrange();
-
-            this.pushImgPoint(point);
         })
     }   
 
@@ -1072,6 +1203,13 @@ export default class Home extends Vue {
             height: 100%;
             background-color: rgba(0, 0, 0, 0.3);
         }
+        p {
+            position: absolute;
+            top: 0;
+            width: 100%;
+            text-align: center;
+            background-color: rgba(0, 0, 0, 0.3);;
+        }
         .signImage {
             position: absolute;
             left: 5px;
@@ -1154,11 +1292,23 @@ export default class Home extends Vue {
         }
     }
 }
-
+.replacePointPanel {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    width: 400px;
+    height: 300px;
+    border: 1px solid #000;
+    background-color: #fff;
+}
     .previewImageBox {
-        @include center-x();
-        top: 50px;
-        z-index: 99999;
+        // @include center-x();
+        position: fixed;
+        top: 0;
+        left: 220px;
+        margin: 0 auto;
+        z-index: 9999;
         width: 940px;
         height: 380px;
         border: 1px solid #000;
@@ -1180,6 +1330,13 @@ export default class Home extends Vue {
                 width: 2px;
                 background-color: orange;
             }
+        }
+        .mask {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
         }
         .close {
             position: absolute;

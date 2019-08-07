@@ -17,6 +17,10 @@ Vue.prototype.$confirm = MessageBox.confirm;
 
 Vue.config.productionTip = false;
 
+// 自定义指令
+// - 拖拽
+import './directives';
+
 new Vue({
   router,
   store,
