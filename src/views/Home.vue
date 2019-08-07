@@ -218,6 +218,7 @@ export default class Home extends Vue {
     private pointStart: number = 0; // 打点 - 起始点时间
     private pointEnd: number = 0; // 打点 - 结束点时间
     private pointStartLeft: number = 0; // 进度指针的位置
+    private pointMinWidth: number = 10; // 设置的pointBox最小宽度，限制pointBox的伸缩
     private divNum: number = 30; // 展示的进度数值的段数
 
     private pointBoxActiveIndex = 0; // 被选中的打点图片索引
@@ -345,10 +346,23 @@ export default class Home extends Vue {
 
     // 平移translateTool工具后的回调
     public pointBoxMove(index: number, width: number, direction: 'left' | 'right') {
+        const pointMinWidth = this.pointMinWidth;
         if(direction === 'left') {
             let point = this.pointList[index];
             let prePoint = this.pointList[index - 1];
             const addWidth = width - point.width;
+            // 向左的限制
+            if(addWidth > 0 && prePoint && prePoint.width < pointMinWidth) {
+                return;
+            }
+            // 向右的限制
+            if(addWidth < 0 && point.width < pointMinWidth) {
+                return;
+            }
+            // 首部item的向左限制
+            if(index === 0) {
+                return;
+            }
             point.positionX -= addWidth;
             point.width += addWidth;
             if(prePoint) {
@@ -358,6 +372,19 @@ export default class Home extends Vue {
             let point = this.pointList[index];
             let nextPoint = this.pointList[index + 1];
             const addWidth = width - point.width;
+            // 向左的限制
+            if(addWidth < 0 && point.width < pointMinWidth) {
+                return;
+            }
+            // 向右的限制
+            if(addWidth > 0 && nextPoint && nextPoint.width < pointMinWidth) {
+                return;
+            }
+            // 尾部item的向右限制
+            if(addWidth > 0 && point.positionX + point.width >= this.imageList.length * 100) {
+                point.width = this.imageList.length * 100 - point.positionX;
+                return;
+            }
             point.width += addWidth;
             if(nextPoint) {
                 nextPoint.positionX += addWidth;
