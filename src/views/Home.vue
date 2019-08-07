@@ -172,6 +172,13 @@ import TranslateTool from '@/components/TranslateTool.vue';
 import Utils from '@/utils/index.ts';
 import Matrix from '@/utils/Matrix.ts';
 
+interface PictureBookData {
+    audio: string;
+    cover: string[];
+    images: string[];
+    pictureBookId: string;
+}
+
 const imageDataTemplate = { 
     id: 0, 
     type: 1, // 图片断点类型，1: 图片，0: 删除区域
@@ -221,6 +228,7 @@ export default class Home extends Vue {
     private firstPreviewImage = ''; // 预览第一张大图
     private secondPreviewImage = ''; // 预览第二张大图
     private previewPageId = ''; // 预览图片Id
+    private pictureBookData: PictureBookData; // 资源数据
 
     private imageList = [ // 图片列表
         { 
@@ -657,7 +665,12 @@ export default class Home extends Vue {
         axios.post('https://sit-studytool.uuabc.com/api/picture-book/user-mapping', {
             "id": this.pictureBookId,
             // "mappings": { "format": [] }
-            "mappings": { "format": this.pointList }
+            "mappings": { "format": {
+                pictureBookId: this.pictureBookData.pictureBookId,
+                audio: this.pictureBookData.audio,
+                cover: this.pictureBookData.cover,
+                pointList: this.pointList
+            } }
         }).then(res => {
             this.$message({
                 message: '保存成功',
@@ -694,6 +707,8 @@ export default class Home extends Vue {
         console.log(pictureBookData);
         //@ts-ignore
         const { pictureBookId, images, audio } = pictureBookData;
+        //@ts-ignore
+        this.pictureBookData = pictureBookData;
 
         this.getWhRate();
 
@@ -917,9 +932,10 @@ export default class Home extends Vue {
                 const data = res.data;
                 const { auto_mapping, id, picture_book_id, user_mapping } = data;
                 const userFormat = user_mapping.format;
-                if( userFormat instanceof Array) {
-                    this.pointList = userFormat;
-                    this.deletePointList = userFormat.filter(point => point.type === 0);
+                if( userFormat instanceof Object) {
+                    const pointList = userFormat.pointList;
+                    this.pointList = pointList;
+                    this.deletePointList = pointList.filter((point: any) => point.type === 0);
                     const pointIdList = this.pointList.map(point => point.id);
                     this.imageList.forEach(point => {
                         if(pointIdList.includes(point.id)) {
