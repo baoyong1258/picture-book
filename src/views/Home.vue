@@ -967,6 +967,7 @@ export default class Home extends Vue {
     getPointListData() {
         axios.get(`https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=${this.pictureBookId}`)
             .then(res => {
+                if(!res.data) { return };
                 const data = res.data;
                 const { auto_mapping, id, picture_book_id, user_mapping } = data;
                 const userFormat = user_mapping.format;
