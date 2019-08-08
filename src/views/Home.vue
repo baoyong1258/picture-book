@@ -1318,7 +1318,7 @@ export default class Home extends Vue {
         top: 0;
         right: 0;
         z-index: 9999;
-        width: 762px;
+        width: 764px;
         border: 1px solid #000;
         background-color: #fff;
         .container {
