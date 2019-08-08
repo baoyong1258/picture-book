@@ -903,7 +903,7 @@ export default class Home extends Vue {
     // 根据图片的宽高比动态设置预览区域的大小
     adjuctPreviewBoxSize() {
         let previewImageBox = document.querySelector('.previewImageBox') as HTMLElement;
-        previewImageBox.style.height = (380 / this.whRate) + 'px';
+        previewImageBox.style.height = (380 / this.whRate + 4) + 'px';
     }
 
     // 获取图片的宽高比
@@ -1325,12 +1325,12 @@ export default class Home extends Vue {
             display: flex;
             .imgBox {
                 flex: 1;
-                display: flex;
                 img {
                     width: 380px;
                 }
                 .spacePage {
-                    flex: 1;
+                    width: 100%;
+                    height: 100%;
                 }
             }
             .div {
