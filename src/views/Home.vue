@@ -140,7 +140,7 @@
                             <div class="pointer"></div>
                         </div>
                     </div>
-                    <div class="btn_container">
+                    <div class="btn_container" @click="clearBtnFocus">
                         <!-- <el-button :disabled="disabled" type="primary" @click="startPoint">开始打点</el-button> -->
                         <!-- <el-button :disabled="!disabled" type="success" @click="endPoint">结束打点</el-button> -->
                         <!-- <el-button @click="resetPoint">重置</el-button> -->
@@ -859,6 +859,7 @@ export default class Home extends Vue {
                 type: 'success',
                 message: '清空成功!'
             });
+            this.clearBtnFocus();
         }).catch(() => {
 
         })
@@ -1031,6 +1032,13 @@ export default class Home extends Vue {
             document.body.addEventListener('mousemove', moveEvent, false);
             document.body.addEventListener('mouseup', upEvent, false);
         }, false);
+    }
+
+    // 清除功能按钮的聚焦 防止快捷键触发上一次的操作
+    clearBtnFocus() {
+        let btn_container = document.querySelector('.btn_container') as HTMLElement;
+        let btns = btn_container.querySelectorAll('button');
+        btns.forEach(btn => btn.blur()); 
     }
 
     // 监听快捷键
