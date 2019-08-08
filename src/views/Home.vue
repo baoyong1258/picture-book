@@ -833,6 +833,7 @@ export default class Home extends Vue {
                 pictureBookId: this.pictureBookData.pictureBookId,
                 audio: this.pictureBookData.audio,
                 cover: this.pictureBookData.cover,
+                images: this.pictureBookData.images,
                 pointList: this.pointList
             } }
         }).then(res => {
