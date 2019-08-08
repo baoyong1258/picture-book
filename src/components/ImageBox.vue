@@ -5,18 +5,15 @@
         @dragstart="dragstartByResource"
         :draggable="state !== 2"
     >
-        <img :src="src" alt="">
-        <div class="mask" v-if="state">
-            <p v-if="state === 1">选中</p>
-            <p v-if="state === 2">已使用</p>
+        <div class="imgContainer">
+            <img :src="src" alt="">
+            <div class="mask" v-if="state">
+                <p v-if="state === 1">选中</p>
+                <p v-if="state === 2">已使用</p>
+            </div>
+            <span class="bigger el-icon-zoom-in" @click="biggerImage"></span>
+            <span class="isAllImage" v-if="isAllImage">纯图片</span>
         </div>
-        <!-- <span class="btn_box" v-if="state === 2">
-            <span class="el-icon-video-play" v-if="playState === 0" @click="play"></span>
-            <span class="el-icon-video-pause" v-else @click="pause"></span>
-        </span> -->
-        <span class="bigger el-icon-zoom-in" @click="biggerImage"></span>
-        <span class="isAllImage" v-if="isAllImage">纯图片</span>
-        <!-- <span v-if="state === 2" class="remove el-icon-circle-close" @click="removeImage"></span> -->
     </div>
 </template>
 <script lang="ts">
@@ -59,11 +56,15 @@ export default class ImageBox extends Vue {
 
 .ImageBox {
     width: 100px;
-    height: 100px;
+    // height: 100px;
     position: relative;
+    .imgContainer {
+        width: 100%;
+        position: relative;
+    }
     img {
         width: 100%;
-        @include center();
+        // @include center();
     }
     .mask {
         position: absolute;

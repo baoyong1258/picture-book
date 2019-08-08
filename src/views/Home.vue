@@ -7,6 +7,7 @@
                     class="spacePage"
                     @dragstart="dragstartBySpacePage"
                     draggable="true"
+                    :style="{height: `${ 100 / whRate }px`}"
                 >
                     <p>空白页</p>
                 </div>
@@ -23,18 +24,20 @@
                     @removeImage="removeImage(index)"
                 ></ImageBox>
                 <div 
+                    v-drag
                     class="biggerImageBox" 
-                    v-if="biggerImageBoxShow"
+                    v-show="biggerImageBoxShow"
                 >
                     <img 
                         :src="biggerImageSrc"
                         :data-src="biggerImageSrc"
-                        @dragstart="dragstartByResource"
+                        @dragstart.stop="dragstartByResource"
+                        @mousedown.stop
                     >
-                    <p v-if="imageList[biggerImageIndex].state === 2">已使用</p>
-                    <!-- <div class="mask" v-if="imageList[biggerImageIndex].state === 2">
-                        <p>已使用</p>
-                    </div> -->
+                    <div class="title">
+                        <p v-if="imageList[biggerImageIndex].state === 2">已使用</p>
+                        <p v-else>选中</p>
+                    </div>
                     <div class="signImage">
                         <el-switch
                             v-model="imageList[biggerImageIndex].isAllImage"
@@ -107,7 +110,6 @@
                                     :direction="item.direction"
                                     :hasSpacePage="item.hasSpacePage"
                                     @click.native="clcikPointBox(index)"
-                                    @move="pointBoxMove"
                                 ></PointBox>
                                 <!-- translate工具组件 -->
                                 <TranslateTool
@@ -121,7 +123,7 @@
                                     @remove="removePoint"
                                     @dragover.native.prevent.stop 
                                     @drop.native.stop='dropReplaceImage'
-                                    @dblclick.native="openReplacePanel"
+                                    @dblclick.native="openBiggerImage"
                                 ></TranslateTool>
                             </div>
                             <!-- 音频截取操作区域 -->
@@ -148,14 +150,6 @@
                     </div>
                 </div>
             </div>
-            <!-- 替换图片 -->
-            <!-- <div v-drag class="replacePointPanel" v-show="showReplacePanel">
-                <ImageReplaceBox></ImageReplaceBox>
-                <div class="footer">
-                    <el-button @click="showReplacePanel = false">取消</el-button>
-                    <el-button type="primary" @click="showReplacePanel = false">确认</el-button>
-                </div>
-            </div> -->
             <!-- 预览 -->
             <div v-drag class="previewImageBox" v-show="showPreviewImageBox">
                 <div class="container">
@@ -281,6 +275,8 @@ export default class Home extends Vue {
 
     private showReplacePanel: boolean = false; // 是否打开替换图片的弹框 
 
+    private screenWidth: number = 1024; // 屏幕宽度
+
     // 选择图片列表
     selecImage(index: number) {
         if (this.imageList[index].state) {
@@ -313,6 +309,21 @@ export default class Home extends Vue {
         this.translateToolShow = true;
         this.pointBoxActiveIndex = index;
         this.pointBoxActiveItem = this.pointList[index];
+    }
+
+    // 双击打点图片 展示大图
+    public openBiggerImage() {
+        console.log('openBiggerImage -->');
+        const index = this.pointBoxActiveIndex;
+        const point = this.pointList[index];
+        if(point.type === 0) {
+            return;
+        }
+        const src = point.src;
+        const imgIndex = this.imageList.findIndex(img => img.src === src);
+        if(imgIndex !== -1) {
+            this.biggerImage(imgIndex);
+        }
     }
 
     // 将图片拖拽到打点区域触发
@@ -517,7 +528,7 @@ export default class Home extends Vue {
             if(imageIndex !== -1) {
                 let images = this.pointList.filter(pointImg => pointImg.src === point.src);
                 if(images.length > 1) {
-                    
+
                 } else {
                     this.imageList[imageIndex].state = 0;
                 }
@@ -698,10 +709,6 @@ export default class Home extends Vue {
         }
     }
 
-    // 打开替换图片的弹框
-    openReplacePanel() {
-        this.showReplacePanel = true;
-    }
     // 创建音频进度条下标时间区域
     createMarks(max: number) {
         let marks: any = {};
@@ -894,8 +901,7 @@ export default class Home extends Vue {
     // 根据图片的宽高比动态设置预览区域的大小
     adjuctPreviewBoxSize() {
         let previewImageBox = document.querySelector('.previewImageBox') as HTMLElement;
-        previewImageBox.style.width = (380 * this.whRate * 2 + 2) + 'px';
-        // const imgList = previewImageBox.querySelectorAll('img');
+        previewImageBox.style.height = (380 / this.whRate) + 'px';
     }
 
     // 获取图片的宽高比
@@ -982,15 +988,9 @@ export default class Home extends Vue {
             this.reArrangeDeletePoint();
             endMatrix.copyFrom(initStartMatrix);
             let width = Utils.getPointLeft(this.pointer) - this.pointStartLeft - templateData.positionX;
-            console.log('endMatrix x...');
-            console.log(endMatrix.x);
-            console.log('width === ' + width);
-            console.log(width);
             let endWith = width >= endMatrix.x ? width : endMatrix.x;
-            console.log('endWith = ' + endWith);
             if(endWith < 5) {
                 const id = templateData.id;
-                console.log('id = ' + id);
                 const deletePointIndex = this.deletePointList.findIndex(deletePoint => deletePoint.id === id);
                 if(deletePointIndex !== -1) {
                     this.deletePointList.splice(deletePointIndex, 1);
@@ -1055,6 +1055,7 @@ export default class Home extends Vue {
             }
             this.biggerImageIndex ++;
             this.biggerImageSrc = this.imageList[this.biggerImageIndex].src;
+            this.selecImage(this.biggerImageIndex);
         }); 
         Mousetrap.bind('left', () => {
             console.log('左键事件触发');
@@ -1066,6 +1067,7 @@ export default class Home extends Vue {
             }
             this.biggerImageIndex --
             this.biggerImageSrc = this.imageList[this.biggerImageIndex].src;
+            this.selecImage(this.biggerImageIndex);
         }); 
         // enter确认大图
         Mousetrap.bind('enter', () => {
@@ -1173,18 +1175,33 @@ export default class Home extends Vue {
     overflow-y: auto;
     display: flex;
     flex-wrap: wrap;
+    align-content: flex-start;
     .spacePage {
         width: 100px;
-        height: 100px;
         background-color: #fff;
-        line-height: 100px;
         text-align: center;
+        position: relative;
+        p {
+            width: 100%;
+            height: 20px;
+            line-height: 20px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            margin: auto;
+        }
     }
     .ImageBox {
-        margin-left: 20px;
+        margin-left: 10px;
+        margin-bottom: 10px;
     }
     .biggerImageBox {
-        @include center();
+        position: fixed;
+        top: 0;
+        right: 0;
+        z-index: 9999;
         border: 1px solid #000;
         .close {
             position: absolute;
@@ -1193,20 +1210,15 @@ export default class Home extends Vue {
             font-size: 24px;
         }
         img {
-            height: 280px;
+            width: 380px;
+            // height: 280px;
         }
-        .mask {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.3);
-        }
-        p {
+        .title {
             position: absolute;
             top: 0;
             width: 100%;
+            height: 30px;
+            line-height: 30px;
             text-align: center;
             background-color: rgba(0, 0, 0, 0.3);;
         }
@@ -1292,25 +1304,12 @@ export default class Home extends Vue {
         }
     }
 }
-.replacePointPanel {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 100;
-    width: 400px;
-    height: 300px;
-    border: 1px solid #000;
-    background-color: #fff;
-}
     .previewImageBox {
-        // @include center-x();
         position: fixed;
         top: 0;
-        left: 220px;
-        margin: 0 auto;
+        right: 0;
         z-index: 9999;
-        width: 940px;
-        height: 380px;
+        width: 762px;
         border: 1px solid #000;
         background-color: #fff;
         .container {
@@ -1319,7 +1318,7 @@ export default class Home extends Vue {
                 flex: 1;
                 display: flex;
                 img {
-                    height: 380px;
+                    width: 380px;
                 }
                 .spacePage {
                     flex: 1;
