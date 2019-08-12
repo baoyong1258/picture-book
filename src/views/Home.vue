@@ -41,6 +41,7 @@
                     <div class="signImage">
                         <el-switch
                             v-model="imageList[biggerImageIndex].isAllImage"
+                            @change="changeSwitch"
                             active-text="纯图片"
                             inactive-text="非纯图片">
                         </el-switch>
@@ -245,11 +246,13 @@ export default class Home extends Vue {
     private imageList = [ // 图片列表
         { 
             id: 0, 
+            type: 1, // 图片断点类型，1: 图片，0: 删除区域
+            isAllImage: false, // 是否为纯图片类型
             src: 'https://creator.uuabc.com/courseware/assets/dj_EGRFf-Ed0ji6.jpg',
             state: 0, 
             start: 0, 
             end: 0, 
-            width: 200, 
+            width: 100, 
             height: '', 
             playState: 0, 
             positionX: 0 ,
@@ -289,6 +292,17 @@ export default class Home extends Vue {
         });
         this.imageList[index].state = 1;
         this.selectedIndex = index;
+    }
+
+    // 切换大图的 纯图片/非纯图片
+    changeSwitch(value: boolean) {
+        console.log('--> changeSwitch');
+        const img = this.imageList[this.biggerImageIndex];
+        this.pointList.forEach(point => {
+            if(point.src === img.src) {
+                point.isAllImage = value;
+            }
+        })
     }
 
     // 拖拽空白页
@@ -1122,10 +1136,14 @@ export default class Home extends Vue {
                     const pointList = userFormat.pointList;
                     this.pointList = pointList;
                     this.deletePointList = pointList.filter((point: any) => point.type === 0);
-                    const pointIdList = this.pointList.map(point => point.id);
+                    const pointSrcList = this.pointList.map(point => point.src);
                     this.imageList.forEach(point => {
-                        if(pointIdList.includes(point.id)) {
+                        if(pointSrcList.includes(point.src)) {
                             point.state = 2;
+                            let pointBox = pointList.find((item: any) => item.src === point.src);
+                            if(pointBox) {
+                                point.isAllImage = pointBox.isAllImage;
+                            }
                         }
                     })
                 }
