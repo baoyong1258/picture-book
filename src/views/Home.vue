@@ -1107,7 +1107,12 @@ export default class Home extends Vue {
 
     // 获取打点信息
     getPointListData() {
-        axios.get(`https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=${this.pictureBookId}`)
+        // axios.get('https://sit-studytool.uuabc.com/api/picture-book/mappings/?id=' + encodeURIComponent(this.pictureBookId))
+        axios.get('https://sit-studytool.uuabc.com/api/picture-book/mappings/', {
+            params: {
+                id: this.pictureBookId
+            }
+        })
             .then(res => {
                 if(!res.data) { return };
                 const data = res.data;
