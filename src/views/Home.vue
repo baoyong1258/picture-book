@@ -243,6 +243,8 @@ export default class Home extends Vue {
     private previewPageId = ''; // 预览图片Id
     private pictureBookData: PictureBookData; // 资源数据
 
+    private pointEditBoxWidth: number = 0; // 编辑区宽度
+
     private imageList = [ // 图片列表
         { 
             id: 0, 
@@ -515,8 +517,8 @@ export default class Home extends Vue {
                 return;
             }
             // 尾部item的向右限制
-            if(addWidth > 0 && point.positionX + point.width >= this.imageList.length * 100) {
-                point.width = this.imageList.length * 100 - point.positionX;
+            if(addWidth > 0 && point.positionX + point.width >= this.pointEditBoxWidth) {
+                point.width = this.pointEditBoxWidth - point.positionX;
                 return;
             }
             point.width += addWidth;
@@ -782,7 +784,7 @@ export default class Home extends Vue {
 
     // 根据时间获取对应的打点位置
     getTimeByPosition(x: number) {
-        let rate = x / (this.imageList.length * 100);
+        let rate = x / (this.pointEditBoxWidth);
         return this.duration * rate;
     }
 
@@ -911,7 +913,9 @@ export default class Home extends Vue {
         const pointEditBox = document.querySelector('.pointEditBox') as HTMLElement;
         pointEditBox.style.width = (document.body.clientWidth - 200) + 'px';
         const pointEditContainer = document.querySelector('.pointEditContainer') as HTMLElement;
-        pointEditContainer.style.width = this.imageList.length * 100 + 'px';
+        const maxWidth = Math.max(document.body.clientWidth - 200, this.imageList.length * 100);
+        this.pointEditBoxWidth = maxWidth;
+        pointEditContainer.style.width = maxWidth + 'px';
     }
 
     // 根据图片的宽高比动态设置预览区域的大小
