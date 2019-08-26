@@ -182,6 +182,7 @@ import ImageReplaceBox from '@/components/ImageReplaceBox.vue';
 import TranslateTool from '@/components/TranslateTool.vue';
 import Utils from '@/utils/index.ts';
 import Matrix from '@/utils/Matrix.ts';
+import DirctionStateMachine from '@/utils/DirctionStateMachine.ts';
 
 interface PictureBookData {
     audio: string;
@@ -447,8 +448,34 @@ export default class Home extends Vue {
 
                         })
                     };
-                    
-                    
+                }
+                break;
+            case 'spacePage':
+                pointBoxActiveItem = this.pointBoxActiveItem as any;
+                let hasSpacePage = pointBoxActiveItem.hasSpacePage;
+                if(this.translateToolShow) {
+                    if(hasSpacePage) {
+                        this.$confirm('确认去除空白页吗？', '提示', {
+                            confirmButtonText: '确定',
+                            cancelButtonText: '取消',
+                            type: 'warning'
+                        }).then(() => {
+                            pointBoxActiveItem.hasSpacePage = false;
+                            this.reArrangeDirection();
+                        }).catch(() => {
+                        })
+                    } else{
+                        this.$confirm('确认插入空白页吗？', '提示', {
+                            confirmButtonText: '确定',
+                            cancelButtonText: '取消',
+                            type: 'warning'
+                        }).then(() => {
+                            pointBoxActiveItem.hasSpacePage = true;
+                            this.reArrangeDirection();
+                        }).catch(() => {
+
+                        })
+                    };
                 }
                 break;
         }
@@ -818,6 +845,22 @@ export default class Home extends Vue {
             let endTime = this.getTimeByPosition(positionX + width);
             point.start = this.exchangeNum(startTime);
             point.end = this.exchangeNum(endTime);
+        }
+    }
+
+    // 重新设置打点图片的方向
+    reArrangeDirection() {
+        const dirctionInstance = new DirctionStateMachine();
+        for(let i = 0, len = this.pointList.length; i < len; i++) {
+            let point = this.pointList[i];
+            const { type, hasSpacePage } = point;
+            if(type === 1) {
+                dirctionInstance.add();
+                point.direction = dirctionInstance.state;
+            }
+            if(hasSpacePage) {
+                dirctionInstance.add();
+            }
         }
     }
 
